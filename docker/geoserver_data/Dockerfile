@@ -1,5 +1,5 @@
 FROM alpine:latest
-ARG GEOSERVER_VERSION=2.24.x
+ARG GEOSERVER_VERSION=2.27.1
 ARG BASE_GEOSERVER_DATA_DIR=/geoserver_data
 
 # Some label best practices
