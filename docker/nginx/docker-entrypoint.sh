@@ -50,7 +50,13 @@ else
         fi
 fi
 
-export HTTP_SCHEME=${HTTP_SCHEME:-http}
+if [ -z "${EXTERNAL_PROXY_SCHEME}" ]; then
+        export HTTP_SCHEME=${HTTP_SCHEME:-http}
+else
+        echo "EXTERNAL_PROXY_SCHEME is set, we use it as HTTP_SCHEME"
+        export HTTP_SCHEME=${EXTERNAL_PROXY_SCHEME}
+fi
+
 export GEONODE_LB_HOST_IP=${GEONODE_LB_HOST_IP:-django}
 export GEONODE_LB_PORT=${GEONODE_LB_PORT:-8000}
 export GEOSERVER_LB_HOST_IP=${GEOSERVER_LB_HOST_IP:-geoserver}
