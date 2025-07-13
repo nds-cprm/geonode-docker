@@ -4,8 +4,7 @@ auth_conf_source="$1"
 auth_conf_target="$2"
 
 # Creating a temporary file for sed to write the changes to
-temp_file="xml.tmp"
-touch $temp_file
+temp_file="/tmp/xml.tmp"
 
 # check if user exists in passwd file
 # if not, change HOME to /tmp
