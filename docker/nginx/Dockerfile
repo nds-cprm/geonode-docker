@@ -1,4 +1,4 @@
-ARG NGINX_VERSION=1.26.5
+ARG NGINX_VERSION=1.26.3
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine
 
 USER root
@@ -24,7 +24,8 @@ RUN mkdir -p \
         nginx.conf \
         ./https/ \
         ./sites-enabled/ && \
-    chmod +x /docker-autoreload.sh /docker-entrypoint.sh
+    chmod +x /docker-autoreload.sh /docker-entrypoint.sh && \
+    chown -R nginx:root * 
 
 USER nginx
 
