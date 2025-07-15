@@ -62,9 +62,9 @@ location /geoserver {
 # GeoNode
 location /static/ {
   alias $STATIC_ROOT;
+  gzip_static always;
 
-  location ~* \.(?:html|js|jpg|jpeg|gif|png|css|tgz|gz|rar|bz2|doc|pdf|ppt|tar|wav|bmp|ttf|rtf|swf|ico|flv|txt|woff|woff2|svg|xml)$ {
-      gzip_static always;
+  if ($request_uri ~* \.(?:html|js|jpg|jpeg|gif|png|css|tgz|gz|rar|bz2|doc|pdf|ppt|tar|wav|bmp|ttf|rtf|swf|ico|flv|txt|woff|woff2|svg|xml)$) {
       expires 30d;
       access_log off;
       add_header Pragma "public";
@@ -74,9 +74,9 @@ location /static/ {
 
 location /uploaded/ {
   alias $MEDIA_ROOT;
+  gzip_static always;
 
-  location ~* \.(?:html|js|jpg|jpeg|gif|png|css|tgz|gz|rar|bz2|doc|pdf|ppt|tar|wav|bmp|ttf|rtf|swf|ico|flv|txt|woff|woff2|svg|xml)$ {
-      gzip_static always;
+  if ($request_uri ~* \.(?:html|js|jpg|jpeg|gif|png|css|tgz|gz|rar|bz2|doc|pdf|ppt|tar|wav|bmp|ttf|rtf|swf|ico|flv|txt|woff|woff2|svg|xml)$) {
       expires 30d;
       access_log off;
       add_header Pragma "public";
@@ -84,7 +84,7 @@ location /uploaded/ {
   }
 }
 
-location / {
+location @uwsgi_fallback {
   # Using a variable is a trick to let Nginx start even if upstream host is not up yet
   # (see https://sandro-keil.de/blog/2017/07/24/let-nginx-start-if-upstream-host-is-unavailable-or-down/)
   set $upstream $GEONODE_LB_HOST_IP:$GEONODE_LB_PORT;
@@ -122,12 +122,18 @@ location / {
   # when a client closes the connection then keep the channel to uwsgi open. Otherwise uwsgi throws an IOError
   uwsgi_ignore_client_abort on;
   uwsgi_request_buffering off;
+}
 
-  location ~* \.(?:js|jpg|jpeg|gif|png|tgz|gz|rar|bz2|doc|pdf|ppt|tar|wav|bmp|ttf|rtf|swf|ico|flv|woff|woff2|svg|xml)$ {
-      gzip_static always;
-      expires 30d;
-      access_log off;
-      add_header Pragma "public";
-      add_header Cache-Control "max-age=31536000, public";
-  }
+location ~* \.(?:js|jpg|jpeg|gif|png|tgz|gz|rar|bz2|doc|pdf|ppt|tar|wav|bmp|ttf|rtf|swf|ico|flv|woff|woff2|svg|xml)$ {
+  gzip_static always;
+  expires 30d;
+  access_log off;
+  add_header Pragma "public";
+  add_header Cache-Control "max-age=31536000, public";
+
+  try_files $uri @uwsgi_fallback;
+}
+
+location / {
+  try_files $uri $uri/ @uwsgi_fallback;
 }
