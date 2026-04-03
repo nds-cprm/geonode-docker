@@ -1,8 +1,9 @@
 ARG IMAGE_VERSION=9.0.106-jdk11-temurin-jammy
 ARG JAVA_HOME=/usr/local/openjdk-11
+
 FROM tomcat:$IMAGE_VERSION
 
-ARG GEOSERVER_VERSION=2.27.1
+ARG GEOSERVER_VERSION=2.27.4
 ARG GEONODE_LOG_DIR=/var/log/geonode
 ARG GEOSERVER_CORS_ENABLED=False
 ARG GEOSERVER_CORS_ALLOWED_ORIGINS=*
@@ -55,6 +56,10 @@ RUN curl --fail --silent --show-error --location --output geoserver.war \
         https://artifacts.geonode.org/geoserver/${GEOSERVER_VERSION}/geoserver.war && \
     unzip -q geoserver.war -d geoserver && \
     rm geoserver.war 
+
+COPY applicationContext.xml /usr/local/tomcat/webapps/geoserver/WEB-INF/classes/applicationContext.xml
+
+VOLUME $GEOSERVER_DATA_DIR
 
 # copy the script and perform the run of scripts from entrypoint.sh
 WORKDIR /usr/local/tomcat/tmp

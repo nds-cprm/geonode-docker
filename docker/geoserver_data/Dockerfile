@@ -1,6 +1,6 @@
 FROM alpine:latest
-ARG GEOSERVER_VERSION=2.27.1
-ARG BASE_GEOSERVER_DATA_DIR=/geoserver_data
+
+ARG GEOSERVER_VERSION=2.27.4
 
 # Some label best practices
 # https://www.docker.com/blog/docker-best-practices-using-tags-and-labels-to-manage-docker-image-sprawl/
@@ -11,6 +11,8 @@ LABEL org.opencontainers.image.title="GeoNode's Geoserver Data image" \
 ENV TEMP_DOWNLOADED=/tmp/geonode/downloaded \
     GEOSERVER_VERSION=${GEOSERVER_VERSION}
 
+# Download required files
+# RUN mkdir -p /tmp/geonode/downloaded
 WORKDIR ${TEMP_DOWNLOADED}
 
 COPY download.sh .
@@ -23,6 +25,8 @@ RUN apk --no-cache add curl && \
     ls -lart
 
 # preparing the volume
+ENV BASE_GEOSERVER_DATA_DIR=/geoserver_data
+
 RUN mkdir -p ${BASE_GEOSERVER_DATA_DIR} && \
     cp -r ${TEMP_DOWNLOADED}/data ${BASE_GEOSERVER_DATA_DIR} && \
     chmod -R g=u ${BASE_GEOSERVER_DATA_DIR}/data

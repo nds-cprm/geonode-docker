@@ -1,4 +1,4 @@
-ARG NGINX_VERSION=1.26.3
+ARG NGINX_VERSION=1.28.0
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine
 
 USER root
