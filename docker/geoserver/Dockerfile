@@ -3,7 +3,7 @@ ARG JAVA_HOME=/usr/local/openjdk-11
 
 FROM tomcat:$IMAGE_VERSION
 
-ARG GEOSERVER_VERSION=2.27.4
+ARG GEOSERVER_VERSION=2.27.6
 ARG GEONODE_LOG_DIR=/var/log/geonode
 ARG GEOSERVER_CORS_ENABLED=False
 ARG GEOSERVER_CORS_ALLOWED_ORIGINS=*
@@ -55,7 +55,21 @@ WORKDIR /usr/local/tomcat/webapps
 RUN curl --fail --silent --show-error --location --output geoserver.war \
         https://artifacts.geonode.org/geoserver/${GEOSERVER_VERSION}/geoserver.war && \
     unzip -q geoserver.war -d geoserver && \
-    rm geoserver.war 
+    rm geoserver.war
+
+#
+# Install GeoServer extensions (same version as the war):
+#  - excel: WFS output in Excel (xls/xlsx)
+#  - geopkg-output: WFS/WPS output in GeoPackage
+#
+ARG GEOSERVER_EXTENSIONS="excel geopkg-output"
+
+RUN for extension in ${GEOSERVER_EXTENSIONS}; do \
+        curl --fail --silent --show-error --location --output /tmp/${extension}.zip \
+            "https://sourceforge.net/projects/geoserver/files/GeoServer/${GEOSERVER_VERSION}/extensions/geoserver-${GEOSERVER_VERSION}-${extension}-plugin.zip/download" && \
+        unzip -q -o -j /tmp/${extension}.zip '*.jar' -d /usr/local/tomcat/webapps/geoserver/WEB-INF/lib/ && \
+        rm /tmp/${extension}.zip || exit 1; \
+    done
 
 COPY applicationContext.xml /usr/local/tomcat/webapps/geoserver/WEB-INF/classes/applicationContext.xml
 
@@ -80,6 +94,9 @@ RUN mkdir -p ${GEOSERVER_DATA_DIR} ${GEONODE_LOG_DIR} ${CATALINA_HOME}/conf/Cata
         ${CATALINA_HOME}/conf/Catalina/localhost \
         ${CATALINA_HOME}/conf/catalina.properties \
         ${CATALINA_HOME}/webapps/geoserver/WEB-INF/web.xml
+
+# Insert fonts
+COPY fonts/ /usr/share/fonts/truetype
 
 VOLUME ${GEOSERVER_DATA_DIR}
 
