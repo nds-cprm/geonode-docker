@@ -1,4 +1,4 @@
-FROM alpine:latest
+FROM --platform=$TARGETPLATFORM alpine:latest
 
 ARG GEOSERVER_VERSION=2.27.4
 

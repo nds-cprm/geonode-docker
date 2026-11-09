@@ -1,5 +1,5 @@
 ARG NGINX_VERSION=1.28.0
-FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine
+FROM --platform=$TARGETPLATFORM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine
 
 USER root
 

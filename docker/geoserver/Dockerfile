@@ -1,7 +1,7 @@
 ARG IMAGE_VERSION=9.0.106-jdk11-temurin-jammy
 ARG JAVA_HOME=/usr/local/openjdk-11
 
-FROM tomcat:$IMAGE_VERSION
+FROM --platform=$TARGETPLATFORM tomcat:$IMAGE_VERSION
 
 ARG GEOSERVER_VERSION=2.27.6
 ARG GEONODE_LOG_DIR=/var/log/geonode
@@ -81,7 +81,8 @@ WORKDIR /usr/local/tomcat/tmp
 COPY set_geoserver_auth.sh entrypoint.sh tasks.py multidump.sh multidump-alt.sh \
      /usr/local/tomcat/tmp/
 
-COPY ./templates /templates
+# 755: leitura para qualquer usuário, independente das permissões do checkout no host
+COPY --chmod=755 ./templates /templates
 
 # create the data and logs directory and set permissions
 RUN mkdir -p ${GEOSERVER_DATA_DIR} ${GEONODE_LOG_DIR} ${CATALINA_HOME}/conf/Catalina/localhost && \
