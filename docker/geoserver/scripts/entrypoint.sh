@@ -134,10 +134,10 @@ fi
 # If GEONODE_GEODATABASE_USER is not set in the environment, use the default value
 if [ -n "$GEONODE_GEODATABASE_PASSWORD" ];
 then
-    echo "GEONODE_GEODATABASE_PASSWORD is defined and not empty with the value '$GEONODE_GEODATABASE_PASSWORD' "
+    echo "GEONODE_GEODATABASE_PASSWORD is defined and not empty (value hidden)"
     echo export GEONODE_GEODATABASE_PASSWORD=${GEONODE_GEODATABASE_PASSWORD} >> "$HOME/.override_env"
 else
-    echo "GEONODE_GEODATABASE_PASSWORD is either not defined or empty setting the value '${GEONODE_GEODATABASE}' "
+    echo "GEONODE_GEODATABASE_PASSWORD is either not defined or empty, setting a default value (value hidden)"
     echo export GEONODE_GEODATABASE_PASSWORD=${GEONODE_GEODATABASE} >> "$HOME/.override_env"
     export GEONODE_GEODATABASE_PASSWORD=${GEONODE_GEODATABASE}
 fi

@@ -22,16 +22,19 @@ test ! -f "$auth_conf_source" && echo "Source $auth_conf_source does not exist o
 test ! -d "$auth_conf_target" && echo "Target directory $auth_conf_target does not exist or is not a directory" && exit 1
 
 # for debugging
-echo -e "OAUTH2_API_KEY=$OAUTH2_API_KEY\n"
-echo -e "OAUTH2_CLIENT_ID=$OAUTH2_CLIENT_ID\n"
-echo -e "OAUTH2_CLIENT_SECRET=$OAUTH2_CLIENT_SECRET\n"
-echo -e "GEOSERVER_LOCATION=$GEOSERVER_LOCATION\n"
-echo -e "GEONODE_LOCATION=$GEONODE_LOCATION\n"
-echo -e "GEONODE_GEODATABASE=$GEONODE_GEODATABASE\n"
-echo -e "GEONODE_GEODATABASE_USER=$GEONODE_GEODATABASE_USER\n"
-echo -e "GEONODE_GEODATABASE_PASSWORD=$GEONODE_GEODATABASE_PASSWORD\n"
-echo -e "auth_conf_source=$auth_conf_source\n"
-echo -e "auth_conf_target=$auth_conf_target\n"
+# Comentado: imprime segredos (OAuth2 e senha do banco). Hoje a saída do script vai para
+# /dev/null no entrypoint, mas vazaria se o script fosse executado manualmente ou se o
+# redirecionamento fosse removido.
+# echo -e "OAUTH2_API_KEY=$OAUTH2_API_KEY\n"
+# echo -e "OAUTH2_CLIENT_ID=$OAUTH2_CLIENT_ID\n"
+# echo -e "OAUTH2_CLIENT_SECRET=$OAUTH2_CLIENT_SECRET\n"
+# echo -e "GEOSERVER_LOCATION=$GEOSERVER_LOCATION\n"
+# echo -e "GEONODE_LOCATION=$GEONODE_LOCATION\n"
+# echo -e "GEONODE_GEODATABASE=$GEONODE_GEODATABASE\n"
+# echo -e "GEONODE_GEODATABASE_USER=$GEONODE_GEODATABASE_USER\n"
+# echo -e "GEONODE_GEODATABASE_PASSWORD=$GEONODE_GEODATABASE_PASSWORD\n"
+# echo -e "auth_conf_source=$auth_conf_source\n"
+# echo -e "auth_conf_target=$auth_conf_target\n"
 
 # Elegance is the key -> adding an empty last line for Mr. “sed” to pick up
 echo " " >> "$auth_conf_source"
