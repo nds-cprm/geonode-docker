@@ -6,8 +6,14 @@ auth_conf_target="$2"
 temp_file="xml.tmp"
 touch $temp_file
 
-source /root/.bashrc
-source /root/.override_env
+# Mesmo $HOME do entrypoint (ver entrypoint.sh): /root como root, HOME=/tmp recomendado na execução
+if [ ! -w "${HOME:-/nonexistent}" ]; then
+    HOME=/tmp
+fi
+if [ -f "$HOME/.bashrc" ]; then
+    source "$HOME/.bashrc"
+fi
+source "$HOME/.override_env"
 
 test -z "$auth_conf_source" && echo "You must specify a source file" && exit 1
 test -z "$auth_conf_target" && echo "You must specify a target conf directory" && exit 1

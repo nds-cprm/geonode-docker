@@ -1,7 +1,16 @@
 #!/bin/bash
 set -e
 
-source /root/.bashrc
+# Estado do entrypoint (.override_env) em $HOME: como root, /root; recomendado definir HOME=/tmp
+# na execução. Se $HOME não for gravável (ex.: UID sem entrada no /etc/passwd, em que o runtime
+# define HOME=/ ou o WORKDIR), usa /tmp. Exportado para os scripts chamados daqui.
+if [ ! -w "${HOME:-/nonexistent}" ]; then
+    HOME=/tmp
+fi
+export HOME
+if [ -f "$HOME/.bashrc" ]; then
+    source "$HOME/.bashrc"
+fi
 
 
 INVOKE_LOG_STDOUT=${INVOKE_LOG_STDOUT:-TRUE}
@@ -41,40 +50,40 @@ fi
 if [ -n "$GEONODE_LB_HOST_IP" ];
 then
     echo "GEONODE_LB_HOST_IP is defined and not empty with the value '$GEONODE_LB_HOST_IP' "
-    echo export GEONODE_LB_HOST_IP=${GEONODE_LB_HOST_IP} >> /root/.override_env
+    echo export GEONODE_LB_HOST_IP=${GEONODE_LB_HOST_IP} >> "$HOME/.override_env"
 else
     echo "GEONODE_LB_HOST_IP is either not defined or empty setting the value to 'django' "
-    echo export GEONODE_LB_HOST_IP=django >> /root/.override_env
+    echo export GEONODE_LB_HOST_IP=django >> "$HOME/.override_env"
     export GEONODE_LB_HOST_IP=django
 fi
 
 if [ -n "$GEONODE_LB_PORT" ];
 then
     echo "GEONODE_LB_HOST_IP is defined and not empty with the value '$GEONODE_LB_PORT' "
-    echo export GEONODE_LB_PORT=${GEONODE_LB_PORT} >> /root/.override_env
+    echo export GEONODE_LB_PORT=${GEONODE_LB_PORT} >> "$HOME/.override_env"
 else
     echo "GEONODE_LB_PORT is either not defined or empty setting the value to '8000' "
-    echo export GEONODE_LB_PORT=8000 >> /root/.override_env
+    echo export GEONODE_LB_PORT=8000 >> "$HOME/.override_env"
     export GEONODE_LB_PORT=8000
 fi
 
 if [ -n "$GEOSERVER_LB_HOST_IP" ];
 then
     echo "GEOSERVER_LB_HOST_IP is defined and not empty with the value '$GEOSERVER_LB_HOST_IP' "
-    echo export GEOSERVER_LB_HOST_IP=${GEOSERVER_LB_HOST_IP} >> /root/.override_env
+    echo export GEOSERVER_LB_HOST_IP=${GEOSERVER_LB_HOST_IP} >> "$HOME/.override_env"
 else
     echo "GEOSERVER_LB_HOST_IP is either not defined or empty setting the value to 'geoserver' "
-    echo export GEOSERVER_LB_HOST_IP=geoserver >> /root/.override_env
+    echo export GEOSERVER_LB_HOST_IP=geoserver >> "$HOME/.override_env"
     export GEOSERVER_LB_HOST_IP=geoserver
 fi
 
 if [ -n "$GEOSERVER_LB_PORT" ];
 then
     echo "GEOSERVER_LB_PORT is defined and not empty with the value '$GEOSERVER_LB_PORT' "
-    echo export GEOSERVER_LB_PORT=${GEOSERVER_LB_PORT} >> /root/.override_env
+    echo export GEOSERVER_LB_PORT=${GEOSERVER_LB_PORT} >> "$HOME/.override_env"
 else
     echo "GEOSERVER_LB_PORT is either not defined or empty setting the value to '8000' "
-    echo export GEOSERVER_LB_PORT=8080 >> /root/.override_env
+    echo export GEOSERVER_LB_PORT=8080 >> "$HOME/.override_env"
     export GEOSERVER_LB_PORT=8080
 fi
 
@@ -82,10 +91,10 @@ fi
 if [ -n "$DATABASE_HOST" ];
 then
     echo "DATABASE_HOST is defined and not empty with the value '$DATABASE_HOST' "
-    echo export DATABASE_HOST=${DATABASE_HOST} >> /root/.override_env
+    echo export DATABASE_HOST=${DATABASE_HOST} >> "$HOME/.override_env"
 else
     echo "DATABASE_HOST is either not defined or empty setting the value to 'db' "
-    echo export DATABASE_HOST=db >> /root/.override_env
+    echo export DATABASE_HOST=db >> "$HOME/.override_env"
     export DATABASE_HOST=db
 fi
 
@@ -93,10 +102,10 @@ fi
 if [ -n "$DATABASE_PORT" ];
 then
     echo "DATABASE_PORT is defined and not empty with the value '$DATABASE_PORT' "
-    echo export DATABASE_HOST=${DATABASE_PORT} >> /root/.override_env
+    echo export DATABASE_HOST=${DATABASE_PORT} >> "$HOME/.override_env"
 else
     echo "DATABASE_PORT is either not defined or empty setting the value to '5432' "
-    echo export DATABASE_PORT=5432 >> /root/.override_env
+    echo export DATABASE_PORT=5432 >> "$HOME/.override_env"
     export DATABASE_PORT=5432
 fi
 
@@ -104,10 +113,10 @@ fi
 if [ -n "$GEONODE_GEODATABASE" ];
 then
     echo "GEONODE_GEODATABASE is defined and not empty with the value '$GEONODE_GEODATABASE' "
-    echo export GEONODE_GEODATABASE=${GEONODE_GEODATABASE} >> /root/.override_env
+    echo export GEONODE_GEODATABASE=${GEONODE_GEODATABASE} >> "$HOME/.override_env"
 else
     echo "GEONODE_GEODATABASE is either not defined or empty setting the value '${COMPOSE_PROJECT_NAME}_data' "
-    echo export GEONODE_GEODATABASE=${COMPOSE_PROJECT_NAME}_data >> /root/.override_env
+    echo export GEONODE_GEODATABASE=${COMPOSE_PROJECT_NAME}_data >> "$HOME/.override_env"
     export GEONODE_GEODATABASE=${COMPOSE_PROJECT_NAME}_data
 fi
 
@@ -115,10 +124,10 @@ fi
 if [ -n "$GEONODE_GEODATABASE_USER" ];
 then
     echo "GEONODE_GEODATABASE_USER is defined and not empty with the value '$GEONODE_GEODATABASE_USER' "
-    echo export GEONODE_GEODATABASE_USER=${GEONODE_GEODATABASE_USER} >> /root/.override_env
+    echo export GEONODE_GEODATABASE_USER=${GEONODE_GEODATABASE_USER} >> "$HOME/.override_env"
 else
     echo "GEONODE_GEODATABASE_USER is either not defined or empty setting the value '$GEONODE_GEODATABASE' "
-    echo export GEONODE_GEODATABASE_USER=${GEONODE_GEODATABASE} >> /root/.override_env
+    echo export GEONODE_GEODATABASE_USER=${GEONODE_GEODATABASE} >> "$HOME/.override_env"
     export GEONODE_GEODATABASE_USER=${GEONODE_GEODATABASE}
 fi
 
@@ -126,10 +135,10 @@ fi
 if [ -n "$GEONODE_GEODATABASE_PASSWORD" ];
 then
     echo "GEONODE_GEODATABASE_PASSWORD is defined and not empty with the value '$GEONODE_GEODATABASE_PASSWORD' "
-    echo export GEONODE_GEODATABASE_PASSWORD=${GEONODE_GEODATABASE_PASSWORD} >> /root/.override_env
+    echo export GEONODE_GEODATABASE_PASSWORD=${GEONODE_GEODATABASE_PASSWORD} >> "$HOME/.override_env"
 else
     echo "GEONODE_GEODATABASE_PASSWORD is either not defined or empty setting the value '${GEONODE_GEODATABASE}' "
-    echo export GEONODE_GEODATABASE_PASSWORD=${GEONODE_GEODATABASE} >> /root/.override_env
+    echo export GEONODE_GEODATABASE_PASSWORD=${GEONODE_GEODATABASE} >> "$HOME/.override_env"
     export GEONODE_GEODATABASE_PASSWORD=${GEONODE_GEODATABASE}
 fi
 
@@ -137,10 +146,10 @@ fi
 if [ -n "$GEONODE_GEODATABASE_SCHEMA" ];
 then
     echo "GEONODE_GEODATABASE_SCHEMA is defined and not empty with the value '$GEONODE_GEODATABASE_SCHEMA' "
-    echo export GEONODE_GEODATABASE_SCHEMA=${GEONODE_GEODATABASE_SCHEMA} >> /root/.override_env
+    echo export GEONODE_GEODATABASE_SCHEMA=${GEONODE_GEODATABASE_SCHEMA} >> "$HOME/.override_env"
 else
     echo "GEONODE_GEODATABASE_SCHEMA is either not defined or empty setting the value to 'public'"
-    echo export GEONODE_GEODATABASE_SCHEMA=public >> /root/.override_env
+    echo export GEONODE_GEODATABASE_SCHEMA=public >> "$HOME/.override_env"
     export GEONODE_GEODATABASE_SCHEMA=public
 fi
 
@@ -155,22 +164,22 @@ if [ -z `echo ${NGINX_BASE_URL} | sed 's/http:\/\/\([^:]*\).*/\1/'` ]
 then
     echo "NGINX_BASE_URL is empty so I'll use the default Geoserver base url"
     echo "Setting GEOSERVER_LOCATION='${SITEURL}'"
-    echo export GEOSERVER_LOCATION=${SITEURL} >> /root/.override_env
+    echo export GEOSERVER_LOCATION=${SITEURL} >> "$HOME/.override_env"
 else
     echo "NGINX_BASE_URL is filled so GEOSERVER_LOCATION='${NGINX_BASE_URL}'"
     echo "Setting GEOSERVER_LOCATION='${NGINX_BASE_URL}'"
-    echo export GEOSERVER_LOCATION=${NGINX_BASE_URL} >> /root/.override_env
+    echo export GEOSERVER_LOCATION=${NGINX_BASE_URL} >> "$HOME/.override_env"
 fi
 
 if [ -n "$SUBSTITUTION_URL" ];
 then
     echo "SUBSTITUTION_URL is defined and not empty with the value '$SUBSTITUTION_URL'"
     echo "Setting GEONODE_LOCATION='${SUBSTITUTION_URL}' "
-    echo export GEONODE_LOCATION=${SUBSTITUTION_URL} >> /root/.override_env
+    echo export GEONODE_LOCATION=${SUBSTITUTION_URL} >> "$HOME/.override_env"
 else
     echo "SUBSTITUTION_URL is either not defined or empty so I'll use the default GeoNode location "
     echo "Setting GEONODE_LOCATION='http://${GEONODE_LB_HOST_IP}:${GEONODE_LB_PORT}' "
-    echo export GEONODE_LOCATION=http://${GEONODE_LB_HOST_IP}:${GEONODE_LB_PORT} >> /root/.override_env
+    echo export GEONODE_LOCATION=http://${GEONODE_LB_HOST_IP}:${GEONODE_LB_PORT} >> "$HOME/.override_env"
 fi
 
 # set basic tagname
