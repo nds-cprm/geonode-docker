@@ -57,6 +57,19 @@ export GEOSERVER_LB_HOST_IP=${GEOSERVER_LB_HOST_IP:-geoserver}
 export GEOSERVER_LB_PORT=${GEOSERVER_LB_PORT:-8080}
 export PUBLIC_HOST=${PUBLIC_HOST}
 
+# DNS usado pelo nginx para resolver os upstreams em runtime (diretiva "resolver").
+# Se RESOLVER não for definido, usa o primeiro nameserver do /etc/resolv.conf do container:
+# funciona com Docker (127.0.0.11) e Podman (aardvark-dns no gateway da rede, ex.: 10.89.x.1)
+# sem depender da sub-rede atribuída. IPv6 precisa ir entre colchetes na diretiva do nginx.
+if [ -z "${RESOLVER}" ]; then
+        RESOLVER=$(awk '/^nameserver/ {print $2; exit}' /etc/resolv.conf)
+        case "$RESOLVER" in
+                *:*) RESOLVER="[$RESOLVER]" ;;
+        esac
+fi
+export RESOLVER=${RESOLVER:-127.0.0.11}
+echo "Using resolver: $RESOLVER"
+
 defined_envs=$(printf '${%s} ' $(env | cut -d= -f1))
 
 echo "Replacing environment variables"
