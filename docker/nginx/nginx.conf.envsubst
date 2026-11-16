@@ -3,11 +3,20 @@
 
 worker_processes auto;
 
+# Rootless (nginx-unprivileged): pid e arquivos temporários em /tmp
+pid /tmp/nginx.pid;
+
 events {
 
 }
 
 http {
+    proxy_temp_path       /tmp/proxy_temp;
+    client_body_temp_path /tmp/client_temp;
+    fastcgi_temp_path     /tmp/fastcgi_temp;
+    uwsgi_temp_path       /tmp/uwsgi_temp;
+    scgi_temp_path        /tmp/scgi_temp;
+
     server_names_hash_bucket_size  64;
     http2 $HTTP2_TOGGLE;
 
@@ -23,7 +32,7 @@ http {
     # even if not used (HTTP_HOST empty), we must keep it as it's used for internal API calls between django and geoserver
     # TODO : do not use unencrypted connection even on LAN, but is it possible to have browser not complaining about unknown authority ?
     server {
-        listen              80;
+        listen              8080;
         server_name         $HTTP_HOST 127.0.0.1;
 
         include sites-enabled/*.conf;
@@ -31,8 +40,8 @@ http {
 
     # Default server closes the connection (we can connect only using HTTP_HOST and HTTPS_HOST)
     server {
-        listen          80 default_server;
-        listen          443;
+        listen          8080 default_server;
+        listen          8443;
         server_name     _;
         return          444;
     }

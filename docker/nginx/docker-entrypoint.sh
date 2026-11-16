@@ -23,13 +23,13 @@ fi
 echo "Creating symbolic link for HTTPS certificate"
 # for some reason, the ln -f flag doesn't work below...
 # TODO : not DRY (reuse same scripts as docker-autoreload.sh)
-rm -f /certificate_symlink
+rm -f /etc/nginx/certificate_symlink
 if [ -f "/geonode-certificates/$LETSENCRYPT_MODE/live/$HTTPS_HOST/fullchain.pem" ] && [ -f "/geonode-certificates/$LETSENCRYPT_MODE/live/$HTTPS_HOST/privkey.pem" ]; then
         echo "Certbot certificate exists, we symlink to the live cert"
-        ln -sf "/geonode-certificates/$LETSENCRYPT_MODE/live/$HTTPS_HOST" /certificate_symlink
+        ln -sf "/geonode-certificates/$LETSENCRYPT_MODE/live/$HTTPS_HOST" /etc/nginx/certificate_symlink
 else
         echo "Certbot certificate does not exist, we symlink to autoissued"
-        ln -sf "/geonode-certificates/autoissued" /certificate_symlink
+        ln -sf "/geonode-certificates/autoissued" /etc/nginx/certificate_symlink
 fi
 
 if [ -z "${HTTPS_HOST}" ]; then
