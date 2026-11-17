@@ -14,8 +14,7 @@ RUN mkdir -p /etc/nginx/html &&\
 ADD nginx.conf.envsubst nginx.https.available.conf.envsubst ./
 ADD geonode.conf.envsubst ./sites-enabled/
 
-ADD docker-autoreload.sh docker-entrypoint.sh /
-RUN chmod +x /docker-autoreload.sh /docker-entrypoint.sh
+COPY --chmod=755 docker-autoreload.sh docker-entrypoint.sh /
 
 # Diretórios escritos em runtime pelo entrypoint precisam pertencer ao usuário nginx.
 # g=u permite rodar com UID arbitrário do grupo root (ex.: OpenShift).

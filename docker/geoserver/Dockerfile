@@ -68,8 +68,8 @@ RUN mkdir -p $CATALINA_HOME/conf/Catalina/localhost \
     && chgrp -R 0 $CATALINA_HOME/conf/Catalina \
     && chmod -R g=u $CATALINA_HOME/conf/Catalina
 
-COPY ./scripts/ /usr/local/bin/
-RUN chmod +x /usr/local/bin/*.sh
+# Só scripts .sh no diretório: --chmod=755 vale para todos (e para subdiretórios, se surgirem).
+COPY --chmod=755 ./scripts/ /usr/local/bin/
 
 # Data dir e pontos de montagem dos volumes compartilhados com o GeoNode (statics, backup_restore,
 # data) graváveis por qualquer UID do grupo 0 (rootless/OpenShift, UID arbitrário): num volume novo,

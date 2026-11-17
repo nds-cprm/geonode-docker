@@ -10,8 +10,7 @@ RUN mkdir -p /geonode-certificates && \
     chmod g=u /geonode-certificates
 
 # Installing scripts
-ADD docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+COPY --chmod=755 docker-entrypoint.sh /docker-entrypoint.sh
 
 # Installing cronjobs
 ADD crontab /crontab
