@@ -6,7 +6,7 @@ auth_conf_target="$2"
 # leitura), e não no diretório de trabalho (/usr/local/tomcat, root 755), onde a criação falhava
 # sem root e a configuração do GeoNode deixava de ser aplicada em silêncio.
 temp_file=$(mktemp "${TMPDIR:-/tmp}/set_geoserver_auth.XXXXXX") || {
-    echo "set_geoserver_auth: não foi possível criar o arquivo temporário" >&2
+    echo "set_geoserver_auth: could not create temporary file" >&2
     exit 1
 }
 trap 'rm -f "$temp_file"' EXIT
@@ -15,7 +15,7 @@ trap 'rm -f "$temp_file"' EXIT
 secret_tags=" authApiKey cliendId clientSecret "
 show_value() {
     case "$secret_tags" in
-        *" $1 "*) echo "(valor oculto)";;
+        *" $1 "*) echo "(value hidden)";;
         *) echo "'$2'";;
     esac
 }
@@ -103,7 +103,7 @@ do
     new_esc=`escape_replacement "$newvalue"`
     if ! sed -E "s@(<$i>)[^<]*(</$i>)@\1${new_esc}\2@g" "$auth_conf_source" > "$temp_file" \
         || ! cp "$temp_file" "$auth_conf_source"; then
-        echo "set_geoserver_auth: falha ao atualizar <$i> em $auth_conf_source" >&2
+        echo "set_geoserver_auth: failed to update <$i> in $auth_conf_source" >&2
         exit 1
     fi
 done
