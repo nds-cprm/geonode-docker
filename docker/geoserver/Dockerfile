@@ -46,10 +46,13 @@ COPY ./files/applicationContext.xml /usr/local/tomcat/webapps/geoserver/WEB-INF/
 COPY ./scripts/ /usr/local/bin/
 RUN chmod +x /usr/local/bin/*.sh
 
-# Data dir gravável por qualquer UID do grupo 0 (rootless/OpenShift, UID arbitrário): no primeiro
-# uso, o copy-up do volume nomeado herda dono e permissões deste diretório. Precisa vir antes do
-# VOLUME, porque alterações posteriores no caminho do volume são descartadas.
-RUN chgrp -R 0 $GEOSERVER_DATA_DIR && chmod -R g=u $GEOSERVER_DATA_DIR
+# Data dir e pontos de montagem dos volumes compartilhados com o GeoNode (statics, backup_restore,
+# data) graváveis por qualquer UID do grupo 0 (rootless/OpenShift, UID arbitrário): num volume novo,
+# o primeiro container que o monta define dono e permissões pelo copy-up deste diretório. Precisa
+# vir antes do VOLUME, porque alterações posteriores no caminho do volume são descartadas.
+RUN mkdir -p /mnt/volumes/statics /backup_restore /data &&\
+    chgrp -R 0 $GEOSERVER_DATA_DIR /mnt/volumes/statics /backup_restore /data &&\
+    chmod -R g=u $GEOSERVER_DATA_DIR /mnt/volumes/statics /backup_restore /data
 
 VOLUME $GEOSERVER_DATA_DIR
 
