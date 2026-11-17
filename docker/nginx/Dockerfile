@@ -27,7 +27,10 @@ RUN mkdir -p \
     chown -R nginx:root /etc/nginx /geonode-certificates && \
     chmod -R g=u /etc/nginx /geonode-certificates
 
-USER nginx
+# uid 101 com grupo primário 0: os diretórios graváveis da imagem são grupo 0 com g=u, e o volume de
+# certificados pode ser criado por outro container (letsencrypt) com grupo 0. No OpenShift o UID é
+# substituído por um aleatório e o grupo 0 se mantém.
+USER 101:0
 
 EXPOSE 8080 8443
 
