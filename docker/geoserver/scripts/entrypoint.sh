@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Arquivos criados pelo entrypoint e pelos scripts chamados daqui com escrita do grupo 0 (g=u), para
+# funcionar com qualquer UID do grupo 0. O Tomcat usa o mesmo valor (ENV UMASK no Dockerfile).
+umask 0002
+
 # Estado do entrypoint (.override_env) em $HOME: como root, /root; recomendado definir HOME=/tmp
 # na execução. Se $HOME não for gravável (ex.: UID sem entrada no /etc/passwd, em que o runtime
 # define HOME=/ ou o WORKDIR), usa /tmp. Exportado para os scripts chamados daqui.
@@ -33,14 +37,21 @@ if [ ! -f "${GEOSERVER_DATA_DIR}/global.xml" ]; then
 
     # needing a tmp extraction because the zip contains /data/ as root    
     echo "Extracting default data skeleton archive to temp dir..."
-    TMP_EXTRACT="/tmp/geoserver_unzip"
+    # Extração dentro do próprio data dir (mesmo filesystem), e não em /tmp: com /tmp em tmpfs, o mv
+    # entre filesystems copia também os xattrs, incluindo o rótulo SELinux privado deste container
+    # (categorias MCS), e os outros containers que montam o volume (django/celery) não conseguiam ler.
+    TMP_EXTRACT="$GEOSERVER_DATA_DIR/.skeleton_unzip"
     mkdir -p "$TMP_EXTRACT"
     unzip -q "$GEOSERVER_SHARE_DIR/geoserver-data-skeleton.zip" -d "$TMP_EXTRACT"
     echo "Moving default data skeleton archive directly to volume..."
-#    mv "$TMP_EXTRACT"/data/* "$TMP_EXTRACT"/data/.* "$GEOSERVER_DATA_DIR/" 2>/dev/null || true
-    mv -v "$TMP_EXTRACT"/data/* "$TMP_EXTRACT"/data/.* "$GEOSERVER_DATA_DIR/" || true
+    # .[!.]* em vez de .*: evita "." e "..", que aqui é o próprio diretório de extração
+    mv -v "$TMP_EXTRACT"/data/* "$TMP_EXTRACT"/data/.[!.]* "$GEOSERVER_DATA_DIR/" || true
     rm -rf "$TMP_EXTRACT"
-    
+    # O zip do skeleton guarda permissões 644/755 (o unzip as restaura, sem respeitar o umask):
+    # g=u no conteúdo para o grupo 0 poder alterá-lo com qualquer UID. A raiz do volume fica de fora:
+    # ela vem do copy-up da imagem (já 775) e pode pertencer a outro UID, que não pode ser alterado.
+    find "$GEOSERVER_DATA_DIR" -mindepth 1 -exec chmod g=u {} +
+
     echo "Extraction complete."
 else
     echo "Existing GeoServer data configuration detected. Skipping extraction."

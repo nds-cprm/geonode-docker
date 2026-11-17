@@ -8,8 +8,6 @@ ARG GEOSERVER_VERSION=2.28.x
 ENV GEOSERVER_VERSION=${GEOSERVER_VERSION}
 ENV GEOSERVER_DATA_DIR="/geoserver_data/data"
 
-RUN apt-get update -y && apt-get -y install --no-install-recommends curl wget unzip procps less gettext-base && rm -rf /var/lib/apt/lists/*
-
 RUN apt-get update -y \
    && apt-get -y install --no-install-recommends curl wget unzip procps less gettext-base \
    && rm -rf /var/lib/apt/lists/*
