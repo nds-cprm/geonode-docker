@@ -52,11 +52,24 @@ RUN W=$CATALINA_HOME/webapps/geoserver/WEB-INF/web.xml \
     && rm -f /tmp/cors-filter.xml
 ENV CATALINA_OPTS="-Dorg.apache.tomcat.util.digester.PROPERTY_SOURCE=org.apache.tomcat.util.digester.EnvironmentPropertySource"
 
+# umask do Tomcat (catalina.sh, padrão 0027): 0002 para os arquivos que o GeoServer cria em runtime
+# (data dir, GWC, logs) nascerem com escrita do grupo 0 (g=u), funcionando com qualquer UID do grupo 0.
+# O SecurityListener, que exigiria umask >= 0007, está desabilitado no server.xml da imagem base.
+ENV UMASK=0002
+
 # Tomcat: não varrer o Bouncy Castle (bcprov) no scan de jars do startup. Feito no build, e não no
 # entrypoint, para o conf/ não ser alterado em runtime (sem root / somente leitura). O grep falha o
 # build se uma nova versão da imagem base mudar a linha e a substituição deixar de casar.
 RUN sed -i -e 's/xom-\*\.jar/xom-\*\.jar,bcprov\*\.jar/' /usr/local/tomcat/conf/catalina.properties \
     && grep -q 'bcprov\*\.jar' /usr/local/tomcat/conf/catalina.properties
+
+# Diretório de descritores de contexto do host (conf/Catalina/localhost): o Tomcat tenta criá-lo no
+# startup se não existir, o que falha sem root ou com filesystem somente leitura (SEVERE
+# "Unable to create directory for deployment"). Criado vazio no build, com grupo 0 e g=u.
+RUN mkdir -p $CATALINA_HOME/conf/Catalina/localhost \
+    && chgrp -R 0 $CATALINA_HOME/conf/Catalina \
+    && chmod -R g=u $CATALINA_HOME/conf/Catalina
+
 COPY ./scripts/ /usr/local/bin/
 RUN chmod +x /usr/local/bin/*.sh
 
