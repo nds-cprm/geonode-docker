@@ -43,6 +43,12 @@ RUN wget --no-check-certificate --progress=bar:force:noscroll \
 
 COPY ./templates $GEOSERVER_SHARE_DIR/templates
 COPY ./files/applicationContext.xml /usr/local/tomcat/webapps/geoserver/WEB-INF/classes/applicationContext.xml
+
+# Tomcat: não varrer o Bouncy Castle (bcprov) no scan de jars do startup. Feito no build, e não no
+# entrypoint, para o conf/ não ser alterado em runtime (sem root / somente leitura). O grep falha o
+# build se uma nova versão da imagem base mudar a linha e a substituição deixar de casar.
+RUN sed -i -e 's/xom-\*\.jar/xom-\*\.jar,bcprov\*\.jar/' /usr/local/tomcat/conf/catalina.properties \
+    && grep -q 'bcprov\*\.jar' /usr/local/tomcat/conf/catalina.properties
 COPY ./scripts/ /usr/local/bin/
 RUN chmod +x /usr/local/bin/*.sh
 

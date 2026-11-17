@@ -216,8 +216,8 @@ cp ${GEOSERVER_DATA_DIR}/global.xml ${GEOSERVER_DATA_DIR}/global.xml.orig
 # run the setting script for global configuration
 /usr/local/bin/set_geoserver_auth.sh ${GEOSERVER_DATA_DIR}/global.xml ${GEOSERVER_DATA_DIR}/ ${TAGNAME[@]} > /dev/null
 
-# exclude wrong dependencies
-sed -i -e 's/xom-\*\.jar/xom-\*\.jar,bcprov\*\.jar/g' /usr/local/tomcat/conf/catalina.properties
+# exclude wrong dependencies: feito no build (Dockerfile), para não alterar o conf/ do Tomcat em
+# runtime (falhava sem root e com filesystem somente leitura, e duplicava a entrada a cada restart)
 
 # templating for this docker image we should also do it for other configuration files in /usr/local/tomcat/tmp
 
