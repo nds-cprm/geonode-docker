@@ -46,6 +46,11 @@ COPY ./files/applicationContext.xml /usr/local/tomcat/webapps/geoserver/WEB-INF/
 COPY ./scripts/ /usr/local/bin/
 RUN chmod +x /usr/local/bin/*.sh
 
+# Data dir gravável por qualquer UID do grupo 0 (rootless/OpenShift, UID arbitrário): no primeiro
+# uso, o copy-up do volume nomeado herda dono e permissões deste diretório. Precisa vir antes do
+# VOLUME, porque alterações posteriores no caminho do volume são descartadas.
+RUN chgrp -R 0 $GEOSERVER_DATA_DIR && chmod -R g=u $GEOSERVER_DATA_DIR
+
 VOLUME $GEOSERVER_DATA_DIR
 
 ENV JAVA_OPTS="-Djava.awt.headless=true -Dgwc.context.suffix=gwc -XX:+UnlockDiagnosticVMOptions -XX:+LogVMOutput -XX:LogFile=/var/log/jvm.log -Xms2048m -Xmx2048m -XX:ParallelGCThreads=4 -Dfile.encoding=UTF8 -Djavax.servlet.request.encoding=UTF-8 -Djavax.servlet.response.encoding=UTF-8 -Duser.timezone=GMT -Dorg.geotools.shapefile.datetime=false -DGS-SHAPEFILE-CHARSET=UTF-8 -DGEOSERVER_CSRF_DISABLED=true -DPRINT_BASE_URL=http://geoserver:8080/geoserver/pdf"
