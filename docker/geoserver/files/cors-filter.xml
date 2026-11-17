@@ -1,0 +1,24 @@
+    <!-- CORS (inserido sempre no build; o liga/desliga é feito em runtime pelo entrypoint). Os valores são resolvidos
+         pelo Tomcat em runtime a partir das variáveis de ambiente (EnvironmentPropertySource); sem a
+         variável definida, vale o padrão depois de ":-". Em cors.allowed.headers o "*" não é curinga
+         no CorsFilter do Tomcat (só em cors.allowed.origins), por isso o padrão é uma lista explícita. -->
+    <filter>
+      <filter-name>DockerGeoServerCorsFilter</filter-name>
+      <filter-class>org.apache.catalina.filters.CorsFilter</filter-class>
+      <init-param>
+        <param-name>cors.allowed.origins</param-name>
+        <param-value>${GEOSERVER_CORS_ALLOWED_ORIGINS:-*}</param-value>
+      </init-param>
+      <init-param>
+        <param-name>cors.allowed.methods</param-name>
+        <param-value>${GEOSERVER_CORS_ALLOWED_METHODS:-GET,POST,PUT,DELETE,HEAD,OPTIONS}</param-value>
+      </init-param>
+      <init-param>
+        <param-name>cors.allowed.headers</param-name>
+        <param-value>${GEOSERVER_CORS_ALLOWED_HEADERS:-Origin,Accept,X-Requested-With,Content-Type,Access-Control-Request-Method,Access-Control-Request-Headers,Authorization}</param-value>
+      </init-param>
+    </filter>
+    <filter-mapping>
+      <filter-name>DockerGeoServerCorsFilter</filter-name>
+      <url-pattern>/*</url-pattern>
+    </filter-mapping>

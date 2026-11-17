@@ -235,37 +235,17 @@ for template in ${geoserver_datadir_template_dirs[*]}; do
     fi
 done
 
-# configure CORS (inspired by https://github.com/oscarfonts/docker-geoserver)
-# if enabled, this will add the filter definitions
-# to the end of the web.xml
-# (this will only happen if our filter has not yet been added before)
-if [ "${GEOSERVER_CORS_ENABLED}" = "true" ] || [ "${GEOSERVER_CORS_ENABLED}" = "True" ]; then
-  if ! grep -q DockerGeoServerCorsFilter "$CATALINA_HOME/webapps/geoserver/WEB-INF/web.xml"; then
-    echo "Enable CORS for $CATALINA_HOME/webapps/geoserver/WEB-INF/web.xml"
-    sed -i "\:</web-app>:i\\
-    <filter>\n\
-      <filter-name>DockerGeoServerCorsFilter</filter-name>\n\
-      <filter-class>org.apache.catalina.filters.CorsFilter</filter-class>\n\
-      <init-param>\n\
-          <param-name>cors.allowed.origins</param-name>\n\
-          <param-value>${GEOSERVER_CORS_ALLOWED_ORIGINS}</param-value>\n\
-      </init-param>\n\
-      <init-param>\n\
-          <param-name>cors.allowed.methods</param-name>\n\
-          <param-value>${GEOSERVER_CORS_ALLOWED_METHODS}</param-value>\n\
-      </init-param>\n\
-      <init-param>\n\
-        <param-name>cors.allowed.headers</param-name>\n\
-        <param-value>${GEOSERVER_CORS_ALLOWED_HEADERS}</param-value>\n\
-      </init-param>\n\
-    </filter>\n\
-    <filter-mapping>\n\
-      <filter-name>DockerGeoServerCorsFilter</filter-name>\n\
-      <url-pattern>/*</url-pattern>\n\
-    </filter-mapping>" "$CATALINA_HOME/webapps/geoserver/WEB-INF/web.xml";
-  fi
+# configure CORS: o filtro está sempre no web.xml (inserido no build, Dockerfile e files/cors-filter.xml),
+# sem sed em runtime (falhava sem root e com filesystem somente leitura). Com o CORS desligado e sem
+# GEOSERVER_CORS_ALLOWED_ORIGINS definido, só a origem pública do GeoServer é permitida: requisições da
+# mesma origem seguem funcionando e as de outros domínios são recusadas (403). Não pode ficar vazio:
+# o ${VAR:-*} do filtro trataria o valor vazio como ausente e liberaria todas as origens.
+if [ "${GEOSERVER_CORS_ENABLED}" != "true" ] && [ "${GEOSERVER_CORS_ENABLED}" != "True" ] && [ -z "${GEOSERVER_CORS_ALLOWED_ORIGINS}" ]; then
+    public_url="${GEOSERVER_PUBLIC_LOCATION:-${SITEURL}}"
+    public_origin=$(printf '%s' "$public_url" | sed -nE 's#^(https?://[^/]+).*#\1#p')
+    export GEOSERVER_CORS_ALLOWED_ORIGINS="${public_origin:-http://cors-disabled.invalid}"
+    echo "CORS disabled: allowing only the origin '${GEOSERVER_CORS_ALLOWED_ORIGINS}'"
 fi
-
 
 if [ "${FORCE_REINIT}" = "true" ] || [ "${FORCE_REINIT}" = "True" ] || [ ! -e "${GEOSERVER_DATA_DIR}/geoserver_init.lock" ]; then
     # Run async configuration, it needs GeoServer to be up and running
