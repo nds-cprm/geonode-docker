@@ -68,9 +68,9 @@ location /geoserver {
 # GeoNode
 location /static/ {
   alias $STATIC_ROOT;
+  gzip_static always;
 
-  location ~* \.(?:html|js|jpg|jpeg|gif|png|css|tgz|gz|rar|bz2|doc|pdf|ppt|tar|wav|bmp|ttf|rtf|swf|ico|flv|txt|woff|woff2|svg|xml)$ {
-      gzip_static always;
+  if ($request_uri ~* \.(?:html|js|jpg|jpeg|gif|png|css|tgz|gz|rar|bz2|doc|pdf|ppt|tar|wav|bmp|ttf|rtf|swf|ico|flv|txt|woff|woff2|svg|xml)$) {
       expires 30d;
       access_log off;
       add_header Pragma "public";
@@ -80,9 +80,9 @@ location /static/ {
 
 location /uploaded/ {
   alias $MEDIA_ROOT;
+  gzip_static always;
 
-  location ~* \.(?:html|js|jpg|jpeg|gif|png|css|tgz|gz|rar|bz2|doc|pdf|ppt|tar|wav|bmp|ttf|rtf|swf|ico|flv|txt|woff|woff2|svg|xml)$ {
-      gzip_static always;
+  if ($request_uri ~* \.(?:html|js|jpg|jpeg|gif|png|css|tgz|gz|rar|bz2|doc|pdf|ppt|tar|wav|bmp|ttf|rtf|swf|ico|flv|txt|woff|woff2|svg|xml)$) {
       expires 30d;
       access_log off;
       add_header Pragma "public";
@@ -129,11 +129,10 @@ location / {
   uwsgi_ignore_client_abort on;
   uwsgi_request_buffering off;
 
-  location ~* \.(?:js|jpg|jpeg|gif|png|tgz|gz|rar|bz2|doc|pdf|ppt|tar|wav|bmp|ttf|rtf|swf|ico|flv|woff|woff2|svg|xml)$ {
-      gzip_static always;
-      expires 30d;
-      access_log off;
-      add_header Pragma "public";
-      add_header Cache-Control "max-age=31536000, public";
+  if ($request_uri ~* \.(?:js|jpg|jpeg|gif|png|tgz|gz|rar|bz2|doc|pdf|ppt|tar|wav|bmp|ttf|rtf|swf|ico|flv|woff|woff2|svg|xml)$) {
+    expires 30d;
+    access_log off;
+    add_header Pragma "public";
+    add_header Cache-Control "max-age=31536000, public";
   }
 }
