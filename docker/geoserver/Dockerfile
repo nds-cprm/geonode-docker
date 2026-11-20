@@ -1,5 +1,5 @@
 ARG IMAGE_VERSION=9.0.123-jdk17-temurin-jammy
-FROM tomcat:$IMAGE_VERSION
+FROM --platform=$TARGETPLATFORM tomcat:$IMAGE_VERSION
 
 ARG GEOSERVER_VERSION=2.28.x
 #
@@ -20,6 +20,23 @@ RUN cd /usr/local/tomcat/webapps \
     && unzip -q geoserver.war -d geoserver \
     && rm geoserver.war \
     && mkdir -p $GEOSERVER_DATA_DIR
+
+#
+# Extensões do GeoServer (mesma versão do war; GEOSERVER_VERSION precisa ser uma versão exata):
+#  - excel: saída WFS em Excel (xls/xlsx)
+#  - geopkg-output: saída WFS/WPS em GeoPackage
+# GEOSERVER_EXTENSIONS="" (build arg) instala só o war.
+#
+ARG GEOSERVER_EXTENSIONS="excel geopkg-output"
+RUN for extension in ${GEOSERVER_EXTENSIONS}; do \
+        wget --no-check-certificate --progress=bar:force:noscroll -O /tmp/${extension}.zip \
+            "https://sourceforge.net/projects/geoserver/files/GeoServer/${GEOSERVER_VERSION}/extensions/geoserver-${GEOSERVER_VERSION}-${extension}-plugin.zip/download" \
+        && unzip -q -o -j /tmp/${extension}.zip '*.jar' -d /usr/local/tomcat/webapps/geoserver/WEB-INF/lib/ \
+        && rm /tmp/${extension}.zip || exit 1; \
+    done
+
+# Fontes usadas nos estilos (SLD): simbologia geológica do SGB/CPRM e Material Symbols
+COPY ./fonts/ /usr/share/fonts/truetype/
 
 #
 # Download datadir zip
