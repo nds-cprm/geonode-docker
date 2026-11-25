@@ -1,6 +1,6 @@
 ARG NGINX_VERSION=1.31.7
 # Imagem rootless: roda como usuário nginx (uid 101) e escuta em 8080 (HTTP) / 8443 (HTTPS)
-FROM --platform=$TARGETPLATFORM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine
+FROM docker.io/nginx/nginx-unprivileged:${NGINX_VERSION}-alpine
 
 USER root
 
