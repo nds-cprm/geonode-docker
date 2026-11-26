@@ -33,19 +33,46 @@ else
 fi
 
 if [ -z "${HTTPS_HOST}" ]; then
-        HTTP_SCHEME="http"
-        if [ $HTTP_PORT = "80" ]; then
-                PUBLIC_HOST=${HTTP_HOST}
-        else
-                PUBLIC_HOST="$HTTP_HOST:$HTTP_PORT"
-        fi
+        LISTEN_SCHEME="http"
+        PUBLIC_NAME="${HTTP_HOST}"
+        PUBLIC_PORT_DEFAULT="${HTTP_PORT}"
 else
-        HTTP_SCHEME="https"
-        if [ $HTTPS_PORT = "443" ]; then
-                PUBLIC_HOST=${HTTPS_HOST}
-        else
-                PUBLIC_HOST="$HTTPS_HOST:$HTTPS_PORT"
-        fi
+        LISTEN_SCHEME="https"
+        PUBLIC_NAME="${HTTPS_HOST}"
+        PUBLIC_PORT_DEFAULT="${HTTPS_PORT}"
+fi
+
+# Proxy externo (ex.: HAProxy em "mode http" terminando TLS): o esquema e a porta que o navegador
+# vê diferem dos que o nginx escuta. PUBLIC_SCHEME/PUBLIC_PORT sobrescrevem os valores deduzidos
+# de HTTPS_HOST e HTTP_PORT/HTTPS_PORT. Sem eles, o comportamento é o de antes.
+HTTP_SCHEME="${PUBLIC_SCHEME:-$LISTEN_SCHEME}"
+if [ -n "${PUBLIC_PORT}" ]; then
+        PORT="${PUBLIC_PORT}"
+elif [ -n "${PUBLIC_SCHEME}" ]; then
+        PORT=$([ "${PUBLIC_SCHEME}" = "https" ] && echo 443 || echo 80)
+else
+        PORT="${PUBLIC_PORT_DEFAULT}"
+fi
+case "${HTTP_SCHEME}:${PORT}" in
+        http:80|https:443|http:|https:) PUBLIC_HOST="${PUBLIC_NAME}" ;;
+        *)                              PUBLIC_HOST="${PUBLIC_NAME}:${PORT}" ;;
+esac
+echo "Public URL: ${HTTP_SCHEME}://${PUBLIC_HOST}"
+
+# Nomes extras aceitos além de HTTP_HOST/HTTPS_HOST (ex.: o nome ou IP interno que o proxy envia
+# no Host, quando ele não preserva o Host original). Separados por espaço.
+export NGINX_EXTRA_SERVER_NAMES="${NGINX_EXTRA_SERVER_NAMES:-}"
+
+# IP real do cliente (módulo realip): o X-Forwarded-For (ex.: "option forwardfor" do HAProxy) só é
+# aceito de PROXY_TRUSTED_ADDRESSES (IPs/CIDRs separados por espaço, vírgula ou ponto e vírgula).
+# Sem a variável, $remote_addr é o IP da conexão.
+: > /etc/nginx/realip.conf
+if [ -n "${PROXY_TRUSTED_ADDRESSES}" ]; then
+        for addr in $(echo "${PROXY_TRUSTED_ADDRESSES}" | tr ',;' '  '); do
+                echo "set_real_ip_from ${addr};" >> /etc/nginx/realip.conf
+        done
+        printf 'real_ip_header %s;\nreal_ip_recursive on;\n' "${PROXY_REAL_IP_HEADER:-X-Forwarded-For}" >> /etc/nginx/realip.conf
+        echo "Trusting client IP from ${PROXY_REAL_IP_HEADER:-X-Forwarded-For} sent by: ${PROXY_TRUSTED_ADDRESSES}"
 fi
 
 export HTTP_VERSION=${HTTP_VERSION:-2}
