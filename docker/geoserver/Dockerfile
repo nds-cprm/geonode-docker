@@ -1,5 +1,5 @@
 ARG IMAGE_VERSION=9.0.123-jdk17-temurin-jammy
-FROM --platform=$TARGETPLATFORM tomcat:$IMAGE_VERSION
+FROM docker.io/library/tomcat:$IMAGE_VERSION
 
 ARG GEOSERVER_VERSION=2.28.x
 #
