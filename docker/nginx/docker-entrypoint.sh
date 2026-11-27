@@ -81,11 +81,6 @@ if [ -n "${PROXY_TRUSTED_ADDRESSES}" ]; then
         echo "Trusting client IP from ${PROXY_REAL_IP_HEADER:-X-Forwarded-For} sent by: ${PROXY_TRUSTED_ADDRESSES}"
 fi
 
-# Pasta dos assets do GeoNode (rota interna /_assets_internal/, X-Accel-Redirect); a mesma do Django,
-# no volume statics. Com barra no fim, por causa do alias.
-ASSETS_ROOT=${ASSETS_ROOT:-/mnt/volumes/statics/assets/}
-export ASSETS_ROOT="${ASSETS_ROOT%/}/"
-
 # Arquivo temporário de resposta por requisição (proxy_max_temp_file_size, no proxy_temp_path em disco)
 export NGINX_PROXY_MAX_TEMP_FILE_SIZE=${NGINX_PROXY_MAX_TEMP_FILE_SIZE:-2048m}
 
