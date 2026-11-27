@@ -11,12 +11,12 @@ server {
     server_name         $HTTPS_HOST $NGINX_EXTRA_SERVER_NAMES;
     keepalive_timeout   70;
 
-    ssl_certificate     /etc/nginx/certificate_symlink/fullchain.pem;
-    ssl_certificate_key /etc/nginx/certificate_symlink/privkey.pem;
+    ssl_certificate     /tmp/nginx/certificate_symlink/fullchain.pem;
+    ssl_certificate_key /tmp/nginx/certificate_symlink/privkey.pem;
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         HIGH:!aNULL:!MD5;
 
-    include sites-enabled/*.conf;
+    include /tmp/nginx/sites-enabled/*.conf;
 }
 
 # if we try to connect from http, we redirect to https

@@ -11,6 +11,12 @@ date
 # We make the config dir
 mkdir -p "/geonode-certificates/$LETSENCRYPT_MODE"
 
+# Configuração gerada a cada boot: fica em /tmp/nginx, e não no /etc/nginx, para o filesystem da
+# imagem poder ser somente leitura (read_only + tmpfs em /tmp). O /etc/nginx/nginx.conf da imagem é
+# um link para /tmp/nginx/nginx.conf, por isso "nginx", "nginx -t" e "nginx -s reload" não mudam.
+RUNTIME_DIR=/tmp/nginx
+mkdir -p "$RUNTIME_DIR/sites-enabled"
+
 echo "Creating autoissued certificates for HTTP host"
 if [ ! -f "/geonode-certificates/autoissued/privkey.pem" ] || [[ $(find /geonode-certificates/autoissued/privkey.pem -mtime +365 -print) ]]; then
         echo "Autoissued certificate does not exist or is too old, we generate one"
@@ -23,13 +29,13 @@ fi
 echo "Creating symbolic link for HTTPS certificate"
 # for some reason, the ln -f flag doesn't work below...
 # TODO : not DRY (reuse same scripts as docker-autoreload.sh)
-rm -f /etc/nginx/certificate_symlink
+rm -f "$RUNTIME_DIR/certificate_symlink"
 if [ -f "/geonode-certificates/$LETSENCRYPT_MODE/live/$HTTPS_HOST/fullchain.pem" ] && [ -f "/geonode-certificates/$LETSENCRYPT_MODE/live/$HTTPS_HOST/privkey.pem" ]; then
         echo "Certbot certificate exists, we symlink to the live cert"
-        ln -sf "/geonode-certificates/$LETSENCRYPT_MODE/live/$HTTPS_HOST" /etc/nginx/certificate_symlink
+        ln -sf "/geonode-certificates/$LETSENCRYPT_MODE/live/$HTTPS_HOST" "$RUNTIME_DIR/certificate_symlink"
 else
         echo "Certbot certificate does not exist, we symlink to autoissued"
-        ln -sf "/geonode-certificates/autoissued" /etc/nginx/certificate_symlink
+        ln -sf "/geonode-certificates/autoissued" "$RUNTIME_DIR/certificate_symlink"
 fi
 
 if [ -z "${HTTPS_HOST}" ]; then
@@ -66,12 +72,12 @@ export NGINX_EXTRA_SERVER_NAMES="${NGINX_EXTRA_SERVER_NAMES:-}"
 # IP real do cliente (módulo realip): o X-Forwarded-For (ex.: "option forwardfor" do HAProxy) só é
 # aceito de PROXY_TRUSTED_ADDRESSES (IPs/CIDRs separados por espaço, vírgula ou ponto e vírgula).
 # Sem a variável, $remote_addr é o IP da conexão.
-: > /etc/nginx/realip.conf
+: > "$RUNTIME_DIR/realip.conf"
 if [ -n "${PROXY_TRUSTED_ADDRESSES}" ]; then
         for addr in $(echo "${PROXY_TRUSTED_ADDRESSES}" | tr ',;' '  '); do
-                echo "set_real_ip_from ${addr};" >> /etc/nginx/realip.conf
+                echo "set_real_ip_from ${addr};" >> "$RUNTIME_DIR/realip.conf"
         done
-        printf 'real_ip_header %s;\nreal_ip_recursive on;\n' "${PROXY_REAL_IP_HEADER:-X-Forwarded-For}" >> /etc/nginx/realip.conf
+        printf 'real_ip_header %s;\nreal_ip_recursive on;\n' "${PROXY_REAL_IP_HEADER:-X-Forwarded-For}" >> "$RUNTIME_DIR/realip.conf"
         echo "Trusting client IP from ${PROXY_REAL_IP_HEADER:-X-Forwarded-For} sent by: ${PROXY_TRUSTED_ADDRESSES}"
 fi
 
@@ -100,15 +106,17 @@ echo "Using resolver: $RESOLVER"
 defined_envs=$(printf '${%s} ' $(env | cut -d= -f1))
 
 echo "Replacing environment variables"
-envsubst "$defined_envs" < /etc/nginx/nginx.conf.envsubst > /etc/nginx/nginx.conf
-envsubst "$defined_envs" < /etc/nginx/nginx.https.available.conf.envsubst > /etc/nginx/nginx.https.available.conf
-envsubst "$defined_envs" < /etc/nginx/sites-enabled/geonode.conf.envsubst > /etc/nginx/sites-enabled/geonode.conf
+envsubst "$defined_envs" < /etc/nginx/nginx.conf.envsubst > "$RUNTIME_DIR/nginx.conf"
+envsubst "$defined_envs" < /etc/nginx/nginx.https.available.conf.envsubst > "$RUNTIME_DIR/nginx.https.available.conf"
+envsubst "$defined_envs" < /etc/nginx/sites-enabled/geonode.conf.envsubst > "$RUNTIME_DIR/sites-enabled/geonode.conf"
 
 echo "Enabling or not https configuration"
 if [ -z "${HTTPS_HOST}" ]; then
-        echo "" > /etc/nginx/nginx.https.enabled.conf
+        # rm antes: num restart, o arquivo pode ser o link do boot anterior (com HTTPS)
+        rm -f "$RUNTIME_DIR/nginx.https.enabled.conf"
+        echo "" > "$RUNTIME_DIR/nginx.https.enabled.conf"
 else
-        ln -sf /etc/nginx/nginx.https.available.conf /etc/nginx/nginx.https.enabled.conf
+        ln -sf "$RUNTIME_DIR/nginx.https.available.conf" "$RUNTIME_DIR/nginx.https.enabled.conf"
 fi
 
 echo "Loading nginx autoreloader"

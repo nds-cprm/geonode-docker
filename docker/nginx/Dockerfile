@@ -26,6 +26,12 @@ RUN mkdir -p \
     chown -R nginx:root /etc/nginx /geonode-certificates && \
     chmod -R g=u /etc/nginx /geonode-certificates
 
+# O entrypoint gera a configuração em /tmp/nginx (ver docker-entrypoint.sh), e não no /etc/nginx,
+# para o container poder rodar com o filesystem somente leitura. O link mantém o caminho padrão do
+# nginx.conf, usado pelo CMD e pelo "nginx -t"/"nginx -s reload" do autoreload.
+# Depois do chown/chmod -R, para eles não seguirem o link (pendente no build).
+RUN ln -sf /tmp/nginx/nginx.conf /etc/nginx/nginx.conf
+
 # uid 101 com grupo primário 0: os diretórios graváveis da imagem são grupo 0 com g=u, e o volume de
 # certificados pode ser criado por outro container (letsencrypt) com grupo 0. No OpenShift o UID é
 # substituído por um aleatório e o grupo 0 se mantém.

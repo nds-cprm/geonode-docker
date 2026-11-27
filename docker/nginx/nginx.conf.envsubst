@@ -3,7 +3,8 @@
 
 worker_processes auto;
 
-# Rootless (nginx-unprivileged): pid e arquivos temporários em /tmp
+# Rootless (nginx-unprivileged): pid e arquivos temporários em /tmp. A configuração gerada pelo
+# entrypoint também fica em /tmp/nginx, para o /etc/nginx poder ser somente leitura.
 pid /tmp/nginx.pid;
 
 events {
@@ -24,12 +25,12 @@ http {
     resolver $RESOLVER; # it seems rancher uses 169.254.169.250 instead of 127.0.0.11 which works well in docker-compose (see /etc/resolv.conf)
 
     # IP real do cliente atrás de proxy externo (gerado pelo entrypoint; vazio sem PROXY_TRUSTED_ADDRESSES)
-    include realip.conf;
+    include /tmp/nginx/realip.conf;
 
     # https - listens on specific name - this uses letsencrypt cert
     # this includes a symlink that links either to nginx.https.available.conf if https in enabled
     # or to an empty file if https is disabled.
-    include nginx.https.enabled.conf;
+    include /tmp/nginx/nginx.https.enabled.conf;
 
     # http - listens to specific HTTP_HOST only - this is not encrypted (not ideal but admissible on LAN for instance)
     # even if not used (HTTP_HOST empty), we must keep it as it's used for internal API calls between django and geoserver
@@ -38,7 +39,7 @@ http {
         listen              8080;
         server_name         $HTTP_HOST 127.0.0.1 $NGINX_EXTRA_SERVER_NAMES;
 
-        include sites-enabled/*.conf;
+        include /tmp/nginx/sites-enabled/*.conf;
     }
 
     # Default server closes the connection (we can connect only using HTTP_HOST and HTTPS_HOST)
