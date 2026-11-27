@@ -1,0 +1,6 @@
+# Configuração do hadolint (lint dos Dockerfiles em docker/*/), usada pelo workflow .github/workflows/lint.yml.
+# Regras: https://github.com/hadolint/hadolint#rules
+# Para ignorar uma regra numa linha só, prefira o comentário "# hadolint ignore=DLxxxx" logo acima da
+# instrução, com o motivo, a desligá-la aqui para o arquivo todo.
+failure-threshold: warning
+ignored: []

@@ -1,0 +1,69 @@
+# Boas práticas de Docker e shell, em pushes no unifica-opengeosgb e em pull requests:
+#   - hadolint nos Dockerfiles de docker/*/, com a configuração do .hadolint.yaml;
+#   - shellcheck nos scripts shell versionados.
+# As versões das ferramentas são fixas: atualize-as à mão e corrija os avisos novos no mesmo PR.
+name: Lint
+
+on:
+  push:
+    branches: [unifica-opengeosgb]
+  pull_request:
+    branches: [unifica-opengeosgb]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  HADOLINT_VERSION: v2.15.1
+  SHELLCHECK_VERSION: v0.11.0
+  # Falha a partir de warning. Os "note" (sobretudo SC2086, variável sem aspas) ficam de fora: pôr aspas
+  # nos scripts herdados pode mudar o comportamento. Corrija-os aos poucos e suba para "info".
+  SHELLCHECK_SEVERITY: warning
+
+jobs:
+  dockerfile:
+    name: Dockerfiles (hadolint)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      # O arquivo vai por stdin (sem contexto de build), então a saída traz "-:<linha>"; o nome do arquivo
+      # fica no grupo do log
+      - name: hadolint
+        run: |
+          status=0
+          for dockerfile in docker/*/Dockerfile; do
+            echo "::group::$dockerfile"
+            docker run --rm -i -v "$PWD/.hadolint.yaml:/.config/hadolint.yaml:ro" \
+              "docker.io/hadolint/hadolint:${HADOLINT_VERSION}" hadolint - < "$dockerfile" || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
+
+  shell:
+    name: Scripts (shellcheck)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      # Scripts versionados, pela extensão .sh ou pelo shebang (sh, bash, dash, ksh)
+      - name: shellcheck
+        run: |
+          set -o pipefail
+          files=()
+          while IFS= read -r f; do
+            [[ -f "$f" ]] || continue
+            if [[ "$f" == *.sh ]] || head -n 1 "$f" | grep -qE '^#!.*\b(ba|da|k)?sh\b'; then
+              files+=("$f")
+            fi
+          done < <(git ls-files)
+          printf 'Scripts verificados:\n'; printf '  %s\n' "${files[@]}"
+          # Saída gcc convertida em anotações nas linhas do PR
+          docker run --rm -v "$PWD:/mnt:ro" -w /mnt "docker.io/koalaman/shellcheck:${SHELLCHECK_VERSION}" \
+              --severity="${SHELLCHECK_SEVERITY}" -f gcc "${files[@]}" \
+            | sed -E 's/^([^:]+):([0-9]+):([0-9]+): (error|warning): (.*)$/::\4 file=\1,line=\2,col=\3,title=shellcheck::\5/'

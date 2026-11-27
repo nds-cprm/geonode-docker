@@ -1,0 +1,29 @@
+# Atualizações automáticas de dependências (Dependabot). Cada PR passa pelos workflows "Imagem Docker"
+# (build com Trivy) e "Lint" antes do merge.
+#
+# Fora daqui, de propósito:
+#   - docker (Dockerfiles em docker/*/): os FROM usam ARG (tomcat:$IMAGE_VERSION, ${POSTGIS_BASE_IMAGE},
+#     nginx-unprivileged:${NGINX_VERSION}) ou alpine:${ALPINE_VERSION}, que o Dependabot não resolve. As
+#     versões das bases são as das tags <imagem>-vX.Y.Z e as do .env do opengeosgb; atualize à mão.
+#
+# O Dependabot só lê este arquivo do branch padrão do repositório.
+version: 2
+
+updates:
+  # Actions dos workflows. As referenciadas por SHA (trivy-action) são atualizadas por SHA, com a tag no
+  # comentário. No trivy-action, confira os advisories antes do merge e atualize junto o
+  # SCAN_TRIVY_VERSION, que o Dependabot não alcança.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: America/Sao_Paulo
+    # O branch de trabalho; o padrão do repositório pode ser outro
+    target-branch: unifica-opengeosgb
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Um PR só para as atualizações minor/patch; as major vêm separadas
+      actions:
+        update-types: [minor, patch]

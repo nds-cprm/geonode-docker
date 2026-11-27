@@ -1,7 +1,7 @@
 ARG IMAGE_VERSION=9.0.123-jdk17-temurin-jammy
 FROM docker.io/library/tomcat:$IMAGE_VERSION
 
-ARG GEOSERVER_VERSION=2.28.x
+ARG GEOSERVER_VERSION=2.28.6
 #
 # Set GeoServer version and data directory
 #
@@ -108,5 +108,25 @@ RUN sed -i 's#AccessLogValve" directory="logs"#AccessLogValve" directory="/dev"#
     && grep -q 'prefix="stdout" suffix="" rotatable="false" buffered="false"' $CATALINA_HOME/conf/server.xml
 
 ENV JAVA_OPTS="-Djava.awt.headless=true -Dgwc.context.suffix=gwc -XX:+UnlockDiagnosticVMOptions -XX:+LogVMOutput -XX:LogFile=/tmp/jvm.log -Xms2048m -Xmx2048m -XX:ParallelGCThreads=4 -Dfile.encoding=UTF8 -Djavax.servlet.request.encoding=UTF-8 -Djavax.servlet.response.encoding=UTF-8 -Duser.timezone=GMT -Dorg.geotools.shapefile.datetime=false -DGS-SHAPEFILE-CHARSET=UTF-8 -DGEOSERVER_CSRF_DISABLED=true -DPRINT_BASE_URL=http://geoserver:8080/geoserver/pdf"
+
+# Repete o ARG do FROM para usá-lo no rótulo da base
+ARG IMAGE_VERSION
+# Rótulos OCI. No fim do arquivo, para que VERSION/REVISION/CREATED (que mudam a cada build) não
+# invalidem o cache das camadas anteriores.
+ARG VERSION=dev
+ARG REVISION=unknown
+ARG CREATED=unknown
+LABEL org.opencontainers.image.title="OpenGeoSGB GeoServer" \
+      org.opencontainers.image.description="GeoServer (Tomcat) com as extensões do SGB/CPRM para o GeoNode" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.created="${CREATED}" \
+      org.opencontainers.image.authors="NDS CPRM" \
+      org.opencontainers.image.vendor="Serviço Geológico do Brasil (SGB/CPRM)" \
+      org.opencontainers.image.url="https://github.com/nds-cprm/geonode-docker" \
+      org.opencontainers.image.source="https://github.com/nds-cprm/geonode-docker" \
+      org.opencontainers.image.documentation="https://github.com/nds-cprm/geonode-docker#readme" \
+      org.opencontainers.image.licenses="GPL-3.0-or-later" \
+      org.opencontainers.image.base.name="docker.io/library/tomcat:${IMAGE_VERSION}"
 
 CMD ["/usr/local/bin/entrypoint.sh"]

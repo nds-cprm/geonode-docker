@@ -1,0 +1,372 @@
+# Constrói as imagens deste repositório (nginx, geoserver, postgis, letsencrypt) e as publica no GitHub
+# Container Registry, uma por repositório:
+#   ghcr.io/nds-cprm/opengeosgb-<imagem> (ex.: opengeosgb-nginx:1.31.10)
+#
+# A tag da imagem é a versão do software embarcado, lida do próprio Dockerfile (ARG com a versão padrão):
+#   - nginx       -> NGINX_VERSION                       (ex.: 1.31.10)
+#   - geoserver   -> GEOSERVER_VERSION                   (ex.: 2.28.6)
+#   - postgis     -> POSTGRES_VERSION-POSTGIS_VERSION    (ex.: 17-3.4)
+#   - letsencrypt -> LETSENCRYPT_VERSION, do env abaixo  (a versão do certbot)
+# Para mudar a versão de uma imagem, altere o ARG no Dockerfile. Não há tag "latest" nem tags git.
+#
+# Eventos:
+#   - push no unifica-opengeosgb -> publica as imagens com mudança em docker/<imagem>/ (ou todas, se este
+#                                   workflow mudar). Uma versão já publicada é sobrescrita pela mesma tag.
+#   - pull request               -> só constrói (e verifica) as imagens com mudança, sem publicar
+#   - manual                     -> constrói uma imagem ou "all"; publica só com "push" marcado
+#
+# Cada arquitetura é construída em runner nativo (amd64 e arm64, sem QEMU) e publicada só por digest. O
+# job "merge" junta os digests de cada imagem num manifesto multiarquitetura e aplica as tags.
+# O job "scan" procura vulnerabilidades com o Trivy na imagem amd64, em todos os eventos (inclusive PRs).
+# Os achados vão para o resumo do job e para a aba Security > Code scanning. Ele não bloqueia a
+# publicação enquanto SCAN_EXIT_CODE for 0.
+name: Imagem Docker
+
+on:
+  push:
+    branches: [unifica-opengeosgb]
+  pull_request:
+    branches: [unifica-opengeosgb]
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Imagem
+        type: choice
+        default: all
+        options: [all, nginx, geoserver, postgis, letsencrypt]
+      push:
+        description: Publicar no GHCR (sem isso, só constrói)
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # PRs: um push novo cancela o build anterior. Branch: cada build vai até o fim.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  REGISTRY: ghcr.io/nds-cprm
+  # Versão do certbot instalado na imagem letsencrypt (o Dockerfile não a fixa, vem do apk do alpine).
+  # Confira ao atualizar a base. As demais imagens leem a versão do próprio Dockerfile.
+  LETSENCRYPT_VERSION: '2.6.0'
+  # Versão fixa do Trivy: em 19/03/2026 houve uma release maliciosa (v0.69.4) e as tags do trivy-action
+  # foram sequestradas (GHSA do aquasecurity/trivy "Trivy ecosystem supply chain temporarily compromised").
+  # Por isso nem a action nem o Trivy usam "latest": atualize os dois à mão, conferindo as releases.
+  SCAN_TRIVY_VERSION: v0.76.2
+  SCAN_SEVERITY: HIGH,CRITICAL
+  # 0: só relata. 1: falha o job (e, com isso, a publicação) quando houver vulnerabilidade HIGH/CRITICAL
+  # com correção disponível que não esteja no .trivyignore
+  SCAN_EXIT_CODE: '0'
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Preparar
+    runs-on: ubuntu-24.04
+    outputs:
+      push: ${{ steps.plan.outputs.push }}
+      has_images: ${{ steps.plan.outputs.has_images }}
+      images: ${{ steps.plan.outputs.images }}
+      builds: ${{ steps.plan.outputs.builds }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # O histórico é necessário para ver o que mudou
+          fetch-depth: 0
+
+      - name: Planejar
+        id: plan
+        env:
+          INPUT_IMAGE: ${{ inputs.image }}
+          INPUT_PUSH: ${{ inputs.push }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          all_images='nginx geoserver postgis letsencrypt'
+
+          # Publicar ou só construir
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)      push=false ;;
+            workflow_dispatch) push="$INPUT_PUSH" ;;
+            *)                 push=true ;;
+          esac
+
+          # Quais imagens
+          images=''
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            if [[ "$INPUT_IMAGE" == all ]]; then images="$all_images"; else images="$INPUT_IMAGE"; fi
+          else
+            # Push no branch e PR: só o que mudou em docker/<imagem>/. O workflow mudando reconstrói tudo.
+            if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+              base="$PR_BASE_SHA"
+            else
+              base="$PUSH_BEFORE_SHA"
+            fi
+            if [[ "$base" =~ ^0+$ ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+              # Branch novo ou histórico reescrito: não há base confiável
+              changed='.github/workflows/docker-image.yml'
+            else
+              changed=$(git diff --name-only "$base" "$GITHUB_SHA")
+            fi
+            echo "Arquivos alterados:"
+            while IFS= read -r f; do echo "  $f"; done <<< "$changed"
+            if grep -qx '.github/workflows/docker-image.yml' <<< "$changed"; then
+              images="$all_images"
+            else
+              for image in $all_images; do
+                if grep -q "^docker/${image}/" <<< "$changed"; then images+="${image} "; fi
+              done
+            fi
+          fi
+
+          # Valor padrão de um ARG do Dockerfile da imagem
+          dockerfile_arg() {
+            local value
+            value=$(sed -nE "s/^ARG $2=([^[:space:]]+).*/\1/p" "docker/$1/Dockerfile" | head -n 1)
+            [[ -n "$value" ]] || { echo "::error file=docker/$1/Dockerfile::ARG $2 com valor padrão não encontrado"; exit 1; }
+            echo "$value"
+          }
+
+          created=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          builds='[]'
+          imgs='[]'
+          for image in $images; do
+            # A versão do software embarcado é a tag da imagem
+            case "$image" in
+              nginx)       version=$(dockerfile_arg nginx NGINX_VERSION) ;;
+              geoserver)   version=$(dockerfile_arg geoserver GEOSERVER_VERSION) ;;
+              postgis)     version="$(dockerfile_arg postgis POSTGRES_VERSION)-$(dockerfile_arg postgis POSTGIS_VERSION)" ;;
+              letsencrypt) version="$LETSENCRYPT_VERSION" ;;
+            esac
+            [[ "$version" =~ ^[0-9]+(\.[0-9]+)*(-[0-9]+(\.[0-9]+)*)?$ ]] \
+              || { echo "::error::Versão de $image fora do padrão (ex.: 1.31.10, 17-3.4): $version"; exit 1; }
+            tags=("${REGISTRY}/opengeosgb-${image}:${version}")
+
+            # Build args e rótulo da versão da base
+            args="VERSION=${version}"$'\n'"REVISION=${GITHUB_SHA}"$'\n'"CREATED=${created}"
+            labels="io.github.nds-cprm.geonode-docker.${image}.version=${version}"
+
+            tag_lines=$(printf '%s\n' "${tags[@]}")
+            imgs=$(jq -c --arg image "$image" --arg tags "$tag_lines" --arg args "$args" --arg labels "$labels" \
+              '. + [{image: $image, tags: $tags, build_args: $args, labels: $labels}]' <<< "$imgs")
+
+            for arch in amd64 arm64; do
+              runner=ubuntu-24.04; [[ "$arch" == arm64 ]] && runner=ubuntu-24.04-arm
+              build_args="$args"
+              # A imagem oficial postgis/postgis só existe para amd64: no arm64, a imresamu/postgis é uma
+              # build multiarquitetura da mesma imagem
+              if [[ "$image" == postgis && "$arch" == arm64 ]]; then
+                build_args+=$'\n'"POSTGIS_BASE_IMAGE=docker.io/imresamu/postgis:${version}-alpine3.22"
+              fi
+              builds=$(jq -c --arg image "$image" --arg arch "$arch" --arg runner "$runner" \
+                --arg args "$build_args" --arg labels "$labels" \
+                '. + [{image: $image, arch: $arch, platform: ("linux/" + $arch), runner: $runner, build_args: $args, labels: $labels}]' <<< "$builds")
+            done
+          done
+
+          has_images=false
+          [[ "$imgs" != '[]' ]] && has_images=true
+          {
+            echo "push=$push"
+            echo "has_images=$has_images"
+            echo "images=$imgs"
+            echo "builds=$builds"
+          } >> "$GITHUB_OUTPUT"
+          echo "Imagens: ${images:-nenhuma}"; jq . <<< "$imgs"
+
+  build:
+    name: Build ${{ matrix.image }} ${{ matrix.arch }}
+    needs: prepare
+    if: needs.prepare.outputs.has_images == 'true'
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.builds) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login no GHCR
+        if: needs.prepare.outputs.push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Os rótulos OCI vêm dos próprios Dockerfiles (VERSION, REVISION e CREATED por build arg)
+      - name: Build
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/${{ matrix.image }}
+          platforms: ${{ matrix.platform }}
+          build-args: ${{ matrix.build_args }}
+          labels: ${{ matrix.labels }}
+          outputs: ${{ needs.prepare.outputs.push == 'true' && format('type=image,name={0}/opengeosgb-{1},push-by-digest=true,name-canonical=true,push=true', env.REGISTRY, matrix.image) || 'type=cacheonly' }}
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.arch }}
+
+      - name: Exportar o digest
+        if: needs.prepare.outputs.push == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          digest='${{ steps.build.outputs.digest }}'
+          touch "$RUNNER_TEMP/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        if: needs.prepare.outputs.push == 'true'
+        with:
+          name: digests-${{ matrix.image }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  scan:
+    name: Vulnerabilidades (Trivy) ${{ matrix.image }}
+    needs: [prepare, build]
+    if: needs.prepare.outputs.has_images == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # Envio do SARIF para a aba Security > Code scanning
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.images) }}
+    steps:
+      # Para o .trivyignore
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Mesma build do job "build" para amd64, toda vinda do cache do GitHub Actions, carregada no Docker
+      # do runner. Assim o scan vale também para PRs, que não publicam a imagem.
+      - name: Carregar a imagem amd64
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/${{ matrix.image }}
+          platforms: linux/amd64
+          load: true
+          tags: geonode-docker-${{ matrix.image }}:scan
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha,scope=${{ matrix.image }}-amd64
+
+      # SARIF para o Code scanning: só o que tem correção, para não encher a aba com achados sem ação
+      - name: Trivy (SARIF)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: ${{ env.SCAN_TRIVY_VERSION }}
+          image-ref: geonode-docker-${{ matrix.image }}:scan
+          scanners: vuln
+          severity: ${{ env.SCAN_SEVERITY }}
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          format: sarif
+          # Sem isto, o SARIF traz todas as severidades, ignorando o "severity"
+          limit-severities-for-sarif: true
+          output: trivy.sarif
+          exit-code: '0'
+
+      # PRs de forks não recebem security-events: write
+      - name: Enviar ao Code scanning
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy.sarif
+          category: trivy-${{ matrix.image }}
+
+      # Tabela no resumo do job; é esta execução que aplica o SCAN_EXIT_CODE
+      - name: Trivy (resumo)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_SKIP_DB_UPDATE: 'true'
+        with:
+          skip-setup-trivy: true
+          image-ref: geonode-docker-${{ matrix.image }}:scan
+          scanners: vuln
+          severity: ${{ env.SCAN_SEVERITY }}
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+          format: table
+          output: trivy.txt
+          exit-code: ${{ env.SCAN_EXIT_CODE }}
+
+      - name: Publicar o resumo
+        if: always() && hashFiles('trivy.txt') != ''
+        env:
+          IMAGE_NAME: ${{ matrix.image }}
+        run: |
+          {
+            echo "## Trivy: ${IMAGE_NAME}, vulnerabilidades ${SCAN_SEVERITY} com correção (amd64)"
+            echo
+            echo '```'
+            cat trivy.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  merge:
+    name: Publicar manifesto ${{ matrix.image }}
+    # Depende do scan para que SCAN_EXIT_CODE=1 bloqueie a publicação
+    needs: [prepare, build, scan]
+    if: needs.prepare.outputs.push == 'true' && needs.prepare.outputs.has_images == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.prepare.outputs.images) }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-${{ matrix.image }}-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # As anotações no índice aparecem na página do pacote no GitHub (a do source liga o pacote ao repositório)
+      - name: Criar o manifesto e aplicar as tags
+        working-directory: ${{ runner.temp }}/digests
+        env:
+          IMAGE_NAME: ${{ matrix.image }}
+          TAGS: ${{ matrix.tags }}
+        run: |
+          args=()
+          while IFS= read -r tag; do
+            [[ -n "$tag" ]] && args+=(-t "$tag")
+          done <<< "$TAGS"
+          sources=()
+          for digest in *; do
+            sources+=("${REGISTRY}/opengeosgb-${IMAGE_NAME}@sha256:${digest}")
+          done
+          docker buildx imagetools create "${args[@]}" \
+            --annotation "index:org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --annotation "index:org.opencontainers.image.description=Imagem ${IMAGE_NAME} do GeoNode do Serviço Geológico do Brasil (SGB/CPRM)" \
+            --annotation "index:org.opencontainers.image.licenses=GPL-3.0-or-later" \
+            --annotation "index:org.opencontainers.image.revision=${GITHUB_SHA}" \
+            "${sources[@]}"
+
+      - name: Conferir o manifesto
+        env:
+          TAGS: ${{ matrix.tags }}
+        run: docker buildx imagetools inspect "$(head -n 1 <<< "$TAGS")"

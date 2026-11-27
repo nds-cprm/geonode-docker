@@ -1,0 +1,8 @@
+# Vulnerabilidades aceitas no scan do Trivy (job "scan" de .github/workflows/docker-image.yml, uma execução por imagem).
+# Uma por linha, pelo identificador (CVE-..., GHSA-...). Sempre com o motivo e uma data para rever,
+# por exemplo:
+#
+#   # <pacote> <versão> fixado pelo GeoNode 5.0.3, sem correção compatível; rever ao atualizar o GeoNode
+#   CVE-0000-00000 exp:2027-01-31
+#
+# O "exp:AAAA-MM-DD" faz o Trivy voltar a relatar a vulnerabilidade depois da data.

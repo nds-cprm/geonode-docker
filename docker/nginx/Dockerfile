@@ -1,4 +1,4 @@
-ARG NGINX_VERSION=1.31.7
+ARG NGINX_VERSION=1.31.10
 # Imagem rootless: roda como usuário nginx (uid 101) e escuta em 8080 (HTTP) / 8443 (HTTPS)
 FROM docker.io/nginx/nginx-unprivileged:${NGINX_VERSION}-alpine
 
@@ -40,6 +40,27 @@ RUN ln -sf /tmp/nginx/nginx.conf /etc/nginx/nginx.conf
 USER 101:0
 
 EXPOSE 8080 8443
+
+# Repete o ARG do FROM para usá-lo no rótulo da base
+ARG NGINX_VERSION
+# Rótulos OCI. No fim do arquivo, para que VERSION/REVISION/CREATED (que mudam a cada build) não
+# invalidem o cache das camadas anteriores.
+ARG VERSION=dev
+ARG REVISION=unknown
+ARG CREATED=unknown
+LABEL org.opencontainers.image.title="OpenGeoSGB nginx" \
+      org.opencontainers.image.description="Proxy reverso (nginx rootless) do GeoNode do Serviço Geológico do Brasil (SGB/CPRM)" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.created="${CREATED}" \
+      org.opencontainers.image.authors="NDS CPRM" \
+      org.opencontainers.image.vendor="Serviço Geológico do Brasil (SGB/CPRM)" \
+      org.opencontainers.image.url="https://github.com/nds-cprm/geonode-docker" \
+      org.opencontainers.image.source="https://github.com/nds-cprm/geonode-docker" \
+      org.opencontainers.image.documentation="https://github.com/nds-cprm/geonode-docker#readme" \
+      org.opencontainers.image.licenses="GPL-3.0-or-later" \
+      org.opencontainers.image.base.name="docker.io/nginx/nginx-unprivileged:${NGINX_VERSION}-alpine"
+
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
