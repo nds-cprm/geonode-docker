@@ -98,6 +98,14 @@ RUN mkdir -p /mnt/volumes/statics /backup_restore /data &&\
 
 VOLUME $GEOSERVER_DATA_DIR
 
+# Access log do Tomcat em stdout (docker logs), em vez de um arquivo em $CATALINA_BASE/logs, que cresce
+# sem limite de tamanho (o Tomcat só faz rotação diária). Sem rotação nem buffer: o arquivo é /dev/stdout.
+# O grep falha o build se a imagem base mudar a linha do AccessLogValve.
+RUN sed -i 's#AccessLogValve" directory="logs"#AccessLogValve" directory="/dev"#' $CATALINA_HOME/conf/server.xml \
+    && sed -i 's#prefix="localhost_access_log" suffix=".txt"#prefix="stdout" suffix="" rotatable="false" buffered="false"#' $CATALINA_HOME/conf/server.xml \
+    && grep -q 'AccessLogValve" directory="/dev"' $CATALINA_HOME/conf/server.xml \
+    && grep -q 'prefix="stdout" suffix="" rotatable="false" buffered="false"' $CATALINA_HOME/conf/server.xml
+
 ENV JAVA_OPTS="-Djava.awt.headless=true -Dgwc.context.suffix=gwc -XX:+UnlockDiagnosticVMOptions -XX:+LogVMOutput -XX:LogFile=/tmp/jvm.log -Xms2048m -Xmx2048m -XX:ParallelGCThreads=4 -Dfile.encoding=UTF8 -Djavax.servlet.request.encoding=UTF-8 -Djavax.servlet.response.encoding=UTF-8 -Duser.timezone=GMT -Dorg.geotools.shapefile.datetime=false -DGS-SHAPEFILE-CHARSET=UTF-8 -DGEOSERVER_CSRF_DISABLED=true -DPRINT_BASE_URL=http://geoserver:8080/geoserver/pdf"
 
 CMD ["/usr/local/bin/entrypoint.sh"]

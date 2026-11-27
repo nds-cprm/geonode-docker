@@ -227,6 +227,20 @@ cp ${GEOSERVER_DATA_DIR}/global.xml ${GEOSERVER_DATA_DIR}/global.xml.orig
 # run the setting script for global configuration
 /usr/local/bin/set_geoserver_auth.sh ${GEOSERVER_DATA_DIR}/global.xml ${GEOSERVER_DATA_DIR}/ ${TAGNAME[@]} > /dev/null
 
+# Log do GeoServer em stdout (docker logs): liga o "Log to StdOut" da página "Global" da interface web
+# (<stdOutLogging> do logging.xml) a cada boot. O perfil de log continua configurável na interface, e o
+# GeoServer continua gravando também o logs/geoserver.log do data dir.
+# sed para um arquivo temporário e cp por cima, como no set_geoserver_auth.sh: preserva o arquivo
+# original (dono, permissões e rótulo SELinux do volume).
+LOGGING_XML="${GEOSERVER_DATA_DIR}/logging.xml"
+if [ -f "$LOGGING_XML" ] && grep -q "<stdOutLogging>false</stdOutLogging>" "$LOGGING_XML"; then
+    logging_tmp=$(mktemp "${TMPDIR:-/tmp}/logging.xml.XXXXXX")
+    sed 's#<stdOutLogging>false</stdOutLogging>#<stdOutLogging>true</stdOutLogging>#' "$LOGGING_XML" > "$logging_tmp" \
+        && cp "$logging_tmp" "$LOGGING_XML" \
+        && echo "GeoServer logging: stdOutLogging enabled in $LOGGING_XML"
+    rm -f "$logging_tmp"
+fi
+
 # exclude wrong dependencies: feito no build (Dockerfile), para não alterar o conf/ do Tomcat em
 # runtime (falhava sem root e com filesystem somente leitura, e duplicava a entrada a cada restart)
 
@@ -256,6 +270,63 @@ if [ "${GEOSERVER_CORS_ENABLED}" != "true" ] && [ "${GEOSERVER_CORS_ENABLED}" !=
     public_origin=$(printf '%s' "$public_url" | sed -nE 's#^(https?://[^/]+).*#\1#p')
     export GEOSERVER_CORS_ALLOWED_ORIGINS="${public_origin:-http://cors-disabled.invalid}"
     echo "CORS disabled: allowing only the origin '${GEOSERVER_CORS_ALLOWED_ORIGINS}'"
+fi
+
+# Proxies confiáveis para o X-Forwarded-For (RemoteIpFilter do GeoServer), separados por vírgula. Sem
+# a variável, o GeoServer só confia no loopback e trata o proxy reverso (nginx) como o cliente.
+#
+# Se não foi definida, usa as sub-redes IPv4 ligadas diretamente às interfaces do container (as redes do
+# compose, onde estão as réplicas do nginx), lidas de /proc/net/route (a imagem não tem o comando "ip"),
+# mais o loopback, que é o padrão do GeoServer e deixaria de valer. Os outros containers dessas redes
+# também passam a ser confiáveis, e as sub-redes incluem o gateway: quem chega pela porta 8080 publicada
+# pelo gateway (o próprio host e, conforme o motor, clientes externos) pode forjar o próprio IP. Fora do
+# desenvolvimento, não publique a 8080.
+#
+# Se foi definida, aceita IPs, CIDRs e nomes de host. O GeoServer só aceita IPs e CIDRs, então os nomes
+# são resolvidos aqui, uma vez no boot, para todos os endereços (getent); um nome que não resolver em
+# GEOSERVER_TRUSTED_PROXIES_WAIT segundos (padrão 60) é deixado de fora, com um aviso. A resolução só
+# vale até o GeoServer reiniciar: um proxy recriado com outro IP, ou uma réplica nova, fica de fora.
+if [ -z "${GEOSERVER_TRUSTED_PROXIES}" ]; then
+    # Rotas sem gateway e com destino diferente de 0.0.0.0, fora do lo: endereço e máscara em hexadecimal,
+    # na ordem de bytes do kernel (little-endian em amd64 e arm64)
+    detected_subnets=$(awk '
+        function hex(s,   i, v) { v = 0; for (i = 1; i <= length(s); i++) v = v * 16 + index("0123456789ABCDEF", toupper(substr(s, i, 1))) - 1; return v }
+        NR > 1 && $1 != "lo" && $2 != "00000000" && $3 == "00000000" {
+            d = $2; m = hex($8); bits = 0
+            while (m > 0) { bits += m % 2; m = int(m / 2) }
+            printf "%d.%d.%d.%d/%d\n", hex(substr(d, 7, 2)), hex(substr(d, 5, 2)), hex(substr(d, 3, 2)), hex(substr(d, 1, 2)), bits
+        }' /proc/net/route 2>/dev/null | sort -u | paste -sd, -)
+    export GEOSERVER_TRUSTED_PROXIES="127.0.0.0/8,::1/128${detected_subnets:+,$detected_subnets}"
+    echo "GEOSERVER_TRUSTED_PROXIES not set, trusting the container networks: ${GEOSERVER_TRUSTED_PROXIES}"
+else
+    GEOSERVER_TRUSTED_PROXIES_WAIT="${GEOSERVER_TRUSTED_PROXIES_WAIT:-60}"
+    trusted_proxies=""
+    for entry in ${GEOSERVER_TRUSTED_PROXIES//,/ }; do
+        # IPv4 ou IPv6, com ou sem máscara, entra como está
+        if printf '%s' "$entry" | grep -Eq '^([0-9]{1,3}(\.[0-9]{1,3}){3}|[0-9A-Fa-f]*:[0-9A-Fa-f:.]*)(/[0-9]{1,3})?$'; then
+            trusted_proxies="${trusted_proxies:+$trusted_proxies,}$entry"
+            continue
+        fi
+        addresses=""
+        waited=0
+        while :; do
+            addresses=$(getent ahosts "$entry" 2>/dev/null | awk '{print $1}' | sort -u | paste -sd, -) || true
+            if [ -n "$addresses" ] || [ "$waited" -ge "$GEOSERVER_TRUSTED_PROXIES_WAIT" ]; then
+                break
+            fi
+            sleep 2
+            waited=$((waited + 2))
+        done
+        if [ -n "$addresses" ]; then
+            echo "GEOSERVER_TRUSTED_PROXIES: ${entry} -> ${addresses}"
+            trusted_proxies="${trusted_proxies:+$trusted_proxies,}$addresses"
+        else
+            echo "WARNING: GEOSERVER_TRUSTED_PROXIES: could not resolve '${entry}' after ${waited}s, ignoring it" >&2
+        fi
+    done
+    # Nada válido na lista: fica só o loopback, o padrão do GeoServer
+    export GEOSERVER_TRUSTED_PROXIES="${trusted_proxies:-127.0.0.0/8,::1/128}"
+    echo "GEOSERVER_TRUSTED_PROXIES: ${GEOSERVER_TRUSTED_PROXIES}"
 fi
 
 if [ "${FORCE_REINIT}" = "true" ] || [ "${FORCE_REINIT}" = "True" ] || [ ! -e "${GEOSERVER_DATA_DIR}/geoserver_init.lock" ]; then
