@@ -81,6 +81,26 @@ if [ -n "${PROXY_TRUSTED_ADDRESSES}" ]; then
         echo "Trusting client IP from ${PROXY_REAL_IP_HEADER:-X-Forwarded-For} sent by: ${PROXY_TRUSTED_ADDRESSES}"
 fi
 
+# Pasta dos assets do GeoNode (rota interna /_assets_internal/, X-Accel-Redirect); a mesma do Django,
+# no volume statics. Com barra no fim, por causa do alias.
+ASSETS_ROOT=${ASSETS_ROOT:-/mnt/volumes/statics/assets/}
+export ASSETS_ROOT="${ASSETS_ROOT%/}/"
+
+# Arquivo temporário de resposta por requisição (proxy_max_temp_file_size, no proxy_temp_path em disco)
+export NGINX_PROXY_MAX_TEMP_FILE_SIZE=${NGINX_PROXY_MAX_TEMP_FILE_SIZE:-2048m}
+
+# Downloads simultâneos por IP de cliente nas rotas de arquivo do Django (map no nginx.conf). Acima do
+# limite, 429. Atrás de proxy externo, precisa de PROXY_TRUSTED_ADDRESSES: sem ele, todos os clientes
+# aparecem com o IP do proxy e dividem o mesmo limite. 0 desliga.
+NGINX_DOWNLOADS_PER_IP=${NGINX_DOWNLOADS_PER_IP:-8}
+if [ "${NGINX_DOWNLOADS_PER_IP}" -gt 0 ] 2>/dev/null; then
+        printf 'limit_conn downloads %s;\nlimit_conn_status 429;\nlimit_conn_log_level warn;\n' "${NGINX_DOWNLOADS_PER_IP}" > "$RUNTIME_DIR/download-limit.conf"
+        echo "Limiting downloads to ${NGINX_DOWNLOADS_PER_IP} per client IP"
+else
+        : > "$RUNTIME_DIR/download-limit.conf"
+        echo "Download limit per client IP disabled"
+fi
+
 export HTTP_VERSION=${HTTP_VERSION:-2}
 export HTTP2_TOGGLE=$([ "$HTTP_VERSION" = "2" ] && echo "on" || echo "off")
 export HTTP_SCHEME=${HTTP_SCHEME:-http}

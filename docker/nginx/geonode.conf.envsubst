@@ -12,11 +12,15 @@ large_client_header_buffers 4 64k;
 proxy_connect_timeout       600;
 proxy_send_timeout          600;
 proxy_read_timeout          600;
-# Sem arquivo temporário para respostas: com o /tmp em tmpfs (filesystem somente leitura), uma resposta
-# maior que os buffers ia para a RAM, até 10 GB por requisição, e clientes lentos baixando arquivos
-# grandes esgotavam a memória do container. Com 0, o nginx repassa a resposta no ritmo do cliente, só
-# com os buffers em memória (proxy_buffers), e o backend espera dentro do proxy_send/read_timeout.
-proxy_max_temp_file_size    0;
+# Tamanho máximo do arquivo temporário de cada resposta (proxy_temp_path, em disco). Até esse tamanho,
+# o nginx lê do backend sem esperar o cliente e o libera logo; acima dele, passa a repassar no ritmo do
+# cliente, sem erro. Limita o disco ocupado por download lento: N downloads ocupam até N x este valor.
+# 0 desliga o temporário (o backend fica preso pelo tempo do cliente; o harakiri do uWSGI corta em 600 s).
+proxy_max_temp_file_size    $NGINX_PROXY_MAX_TEMP_FILE_SIZE;
+proxy_temp_file_write_size  256k;
+
+# Downloads simultâneos por IP (ver o map no nginx.conf); vazio com NGINX_DOWNLOADS_PER_IP=0
+include /tmp/nginx/download-limit.conf;
 uwsgi_read_timeout          600;
 send_timeout                600;
 
@@ -68,6 +72,18 @@ location /geoserver {
   proxy_redirect http://$upstream $HTTP_SCHEME://$PUBLIC_HOST;
   proxy_request_buffering  off;
   client_max_body_size 0;
+  # Só o Django pode pedir arquivos da rota interna /_assets_internal/
+  proxy_ignore_headers X-Accel-Redirect;
+}
+
+# Assets do GeoNode (anexos, documentos, originais de datasets) entregues pelo nginx: o Django verifica
+# a permissão e responde só com X-Accel-Redirect para cá (opengeosgb/assets.py). "internal": não é
+# acessível por URL. Os cabeçalhos Content-Type e Content-Disposition vêm da resposta do Django.
+location /_assets_internal/ {
+  internal;
+  alias $ASSETS_ROOT;
+  sendfile on;
+  tcp_nopush on;
 }
 
 # GeoNode
@@ -123,6 +139,14 @@ location / {
   proxy_set_header            X-Forwarded-Proto $HTTP_SCHEME;
   proxy_hide_header           X-Frame-Options;
   proxy_request_buffering     off;
+  # Buffers de resposta maiores que o padrão (4/8 KB): o download pelo Django (uWSGI http-socket) foi
+  # de cerca de 545 para 790 MB/s, o mesmo que direto no uWSGI; 64 KB não ganhou mais. Usa até 144 KB
+  # de memória por conexão. Só nesta rota: no /geoserver, buffers maiores deixaram o download ~12% mais lento.
+  proxy_buffer_size           16k;
+  proxy_buffers               8 16k;
+  # Avisa o Django de que o download de assets pode sair pela rota interna (X-Accel-Redirect); sempre
+  # sobrescreve o valor enviado pelo cliente
+  proxy_set_header            X-Accel-Assets-Prefix /_assets_internal/;
 
   # uwsgi_params
   include /etc/nginx/uwsgi_params;

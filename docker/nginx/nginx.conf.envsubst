@@ -12,11 +12,27 @@ events {
 }
 
 http {
-    proxy_temp_path       /tmp/proxy_temp;
+    # Temporários de resposta em disco, e não no tmpfs de /tmp (que ocupa RAM): o nginx lê a resposta
+    # do Django/GeoServer na velocidade do disco e libera o worker do uWSGI ou a thread do Tomcat, em
+    # vez de prendê-los pelo tempo de download de um cliente lento. Precisa ser gravável: no compose,
+    # um volume por container (sem ele, com read_only, o nginx não sobe). O nginx apaga cada arquivo
+    # logo depois de abri-lo, então nada sobra entre reinícios.
+    proxy_temp_path       /var/cache/nginx/proxy_temp;
     client_body_temp_path /tmp/client_temp;
     fastcgi_temp_path     /tmp/fastcgi_temp;
     uwsgi_temp_path       /tmp/uwsgi_temp;
     scgi_temp_path        /tmp/scgi_temp;
+
+    # Downloads simultâneos por IP nas rotas que entregam arquivos pelo Django (cada um ocupa um worker
+    # do uWSGI enquanto o nginx lê a resposta). Fora delas a chave é vazia e não conta. O limite em si
+    # (NGINX_DOWNLOADS_PER_IP) é gerado pelo entrypoint em /tmp/nginx/download-limit.conf.
+    map $uri $download_limit_key {
+        ~^/api/v2/assets/[0-9]+/download       $binary_remote_addr;
+        ~^/documents/[0-9]+/(download|link)    $binary_remote_addr;
+        ~^/datasets/[^/]+/dataset_download     $binary_remote_addr;
+        default                                "";
+    }
+    limit_conn_zone $download_limit_key zone=downloads:10m;
 
     server_names_hash_bucket_size  64;
     http2 $HTTP2_TOGGLE;
