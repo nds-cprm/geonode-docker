@@ -12,7 +12,11 @@ large_client_header_buffers 4 64k;
 proxy_connect_timeout       600;
 proxy_send_timeout          600;
 proxy_read_timeout          600;
-proxy_max_temp_file_size    10240m;
+# Sem arquivo temporário para respostas: com o /tmp em tmpfs (filesystem somente leitura), uma resposta
+# maior que os buffers ia para a RAM, até 10 GB por requisição, e clientes lentos baixando arquivos
+# grandes esgotavam a memória do container. Com 0, o nginx repassa a resposta no ritmo do cliente, só
+# com os buffers em memória (proxy_buffers), e o backend espera dentro do proxy_send/read_timeout.
+proxy_max_temp_file_size    0;
 uwsgi_read_timeout          600;
 send_timeout                600;
 
