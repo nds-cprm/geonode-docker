@@ -72,6 +72,18 @@ location /geoserver {
   proxy_redirect http://$upstream $HTTP_SCHEME://$PUBLIC_HOST;
   proxy_request_buffering  off;
   client_max_body_size 0;
+  # Só o Django pode pedir arquivos da rota interna /_assets_internal/
+  proxy_ignore_headers X-Accel-Redirect;
+}
+
+# Assets do GeoNode (anexos, documentos, originais de datasets) entregues pelo nginx: o Django verifica
+# a permissão e responde só com X-Accel-Redirect para cá (opengeosgb/assets.py). "internal": não é
+# acessível por URL. Os cabeçalhos Content-Type e Content-Disposition vêm da resposta do Django.
+location /_assets_internal/ {
+  internal;
+  alias $ASSETS_ROOT;
+  sendfile on;
+  tcp_nopush on;
 }
 
 # GeoNode
@@ -132,6 +144,9 @@ location / {
   # de memória por conexão. Só nesta rota: no /geoserver, buffers maiores deixaram o download ~12% mais lento.
   proxy_buffer_size           16k;
   proxy_buffers               8 16k;
+  # Avisa o Django de que o download de assets pode sair pela rota interna (X-Accel-Redirect); sempre
+  # sobrescreve o valor enviado pelo cliente
+  proxy_set_header            X-Accel-Assets-Prefix /_assets_internal/;
 
   # uwsgi_params
   include /etc/nginx/uwsgi_params;
