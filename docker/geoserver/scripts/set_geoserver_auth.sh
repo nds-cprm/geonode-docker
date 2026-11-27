@@ -56,6 +56,8 @@ echo " " >> "$auth_conf_source"
 # Comentado: o XML contém segredos (ex.: clientSecret do OAuth2)
 # cat "$auth_conf_source"
 
+# Sem aspas de propósito: cada argumento passa por separação de palavras, como sempre foi
+# shellcheck disable=SC2206
 tagname=( ${@:3:7} )
 
 # for debugging

@@ -10,7 +10,7 @@ INTERVAL=$2
 COUNT=$3
 
 top -bH -d $INTERVAL -n $COUNT -p $PID >> top.out 2>&1 &
-for i in `seq $COUNT`; do
+for _ in $(seq "$COUNT"); do
     kill -3 $PID
     sleep $INTERVAL
 done

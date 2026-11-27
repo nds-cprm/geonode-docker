@@ -4,6 +4,8 @@ FROM docker.io/nginx/nginx-unprivileged:${NGINX_VERSION}-alpine
 
 USER root
 
+# Pacotes sem versão fixa: o apk da imagem base (alpine) só mantém as versões da própria release
+# hadolint ignore=DL3018
 RUN apk add --no-cache openssl inotify-tools vim
 
 WORKDIR /etc/nginx/
@@ -11,8 +13,8 @@ WORKDIR /etc/nginx/
 RUN mkdir -p /etc/nginx/html &&\
     touch /etc/nginx/html/index.html
 
-ADD nginx.conf.envsubst nginx.https.available.conf.envsubst ./
-ADD geonode.conf.envsubst ./sites-enabled/
+COPY nginx.conf.envsubst nginx.https.available.conf.envsubst ./
+COPY geonode.conf.envsubst ./sites-enabled/
 
 COPY --chmod=755 docker-autoreload.sh docker-entrypoint.sh /
 

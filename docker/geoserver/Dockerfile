@@ -8,6 +8,8 @@ ARG GEOSERVER_VERSION=2.28.x
 ENV GEOSERVER_VERSION=${GEOSERVER_VERSION}
 ENV GEOSERVER_DATA_DIR="/geoserver_data/data"
 
+# Pacotes sem versão fixa: o apt da imagem base só mantém as versões da própria release
+# hadolint ignore=DL3008
 RUN apt-get update -y \
    && apt-get -y install --no-install-recommends curl wget unzip procps less gettext-base \
    && rm -rf /var/lib/apt/lists/*
@@ -15,10 +17,9 @@ RUN apt-get update -y \
 #
 # Download and install GeoServer
 #
-RUN cd /usr/local/tomcat/webapps \
-    && wget --no-check-certificate --progress=bar:force:noscroll https://artifacts.geonode.org/geoserver/${GEOSERVER_VERSION}/geoserver.war -O geoserver.war \
-    && unzip -q geoserver.war -d geoserver \
-    && rm geoserver.war \
+RUN wget --no-check-certificate --progress=bar:force:noscroll https://artifacts.geonode.org/geoserver/${GEOSERVER_VERSION}/geoserver.war -O /usr/local/tomcat/webapps/geoserver.war \
+    && unzip -q /usr/local/tomcat/webapps/geoserver.war -d /usr/local/tomcat/webapps/geoserver \
+    && rm /usr/local/tomcat/webapps/geoserver.war \
     && mkdir -p $GEOSERVER_DATA_DIR
 
 #

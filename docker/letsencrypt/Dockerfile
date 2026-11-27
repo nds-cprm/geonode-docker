@@ -1,5 +1,7 @@
 FROM docker.io/library/alpine:latest
 
+# Sem versão fixa: o apk da imagem base (alpine) só mantém as versões da própria release
+# hadolint ignore=DL3018
 RUN apk add --no-cache certbot
 
 # Ponto de montagem do volume de certificados compartilhado com o nginx: num volume novo, o primeiro
@@ -13,7 +15,7 @@ RUN mkdir -p /geonode-certificates && \
 COPY --chmod=755 docker-entrypoint.sh /docker-entrypoint.sh
 
 # Installing cronjobs
-ADD crontab /crontab
+COPY crontab /crontab
 RUN /usr/bin/crontab /crontab && \
     rm /crontab
 
@@ -21,4 +23,4 @@ RUN /usr/bin/crontab /crontab && \
 ENTRYPOINT ["./docker-entrypoint.sh"]
 
 # We run cron in foreground to update the certificates
-CMD /usr/sbin/crond -f
+CMD ["/usr/sbin/crond", "-f"]

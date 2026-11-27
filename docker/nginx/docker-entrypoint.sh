@@ -1,8 +1,12 @@
 #!/bin/sh
+# O /bin/sh da imagem (alpine) é o ash do busybox, que aceita [[ ]] e ==
+# shellcheck shell=busybox
 
 # Exit script in case of error
 set -e
 
+# Linha de separação nos logs, mantida como está (não é POSIX, mas só imprime o banner)
+# shellcheck disable=SC3004
 echo $"\n\n\n"
 echo "-----------------------------------------------------"
 echo "STARTING NGINX ENTRYPOINT ---------------------------"
@@ -97,7 +101,8 @@ else
 fi
 
 export HTTP_VERSION=${HTTP_VERSION:-2}
-export HTTP2_TOGGLE=$([ "$HTTP_VERSION" = "2" ] && echo "on" || echo "off")
+HTTP2_TOGGLE=$([ "$HTTP_VERSION" = "2" ] && echo "on" || echo "off")
+export HTTP2_TOGGLE
 export HTTP_SCHEME=${HTTP_SCHEME:-http}
 export GEONODE_LB_HOST_IP=${GEONODE_LB_HOST_IP:-django}
 export GEONODE_LB_PORT=${GEONODE_LB_PORT:-8000}
@@ -118,6 +123,8 @@ fi
 export RESOLVER=${RESOLVER:-127.0.0.11}
 echo "Using resolver: $RESOLVER"
 
+# Separação de palavras proposital: um ${VAR} por variável do ambiente
+# shellcheck disable=SC2046
 defined_envs=$(printf '${%s} ' $(env | cut -d= -f1))
 
 echo "Replacing environment variables"

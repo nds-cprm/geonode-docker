@@ -1,4 +1,6 @@
 #!/bin/sh
+# O /bin/sh da imagem (alpine) é o ash do busybox, que aceita [[ ]], == e $"..."
+# shellcheck shell=busybox
 
 # This will watch the /geonode-certificates folder and run nginx -s reload whenever there are some changes.
 # We use this to reload nginx config when certificates changed.

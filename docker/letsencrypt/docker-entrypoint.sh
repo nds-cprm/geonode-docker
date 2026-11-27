@@ -1,8 +1,12 @@
 #!/bin/sh
+# O /bin/sh da imagem (alpine) é o ash do busybox, que aceita [[ ]] e ==
+# shellcheck shell=busybox
 
 # Exit script in case of error
 set -e
 
+# Linha de separação nos logs, mantida como está (não é POSIX, mas só imprime o banner)
+# shellcheck disable=SC3004
 echo $"\n\n\n"
 echo "-----------------------------------------------------"
 echo "STARTING LETSENCRYPT ENTRYPOINT ---------------------"

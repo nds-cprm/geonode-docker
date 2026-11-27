@@ -1,4 +1,7 @@
 #!/bin/bash
+# Expansões sem aspas herdadas do GeoNode (TAGNAME, $@, find): quotar mudaria os argumentos posicionais
+# passados ao set_geoserver_auth.sh. Corrija com teste do stack inteiro, e não só no lint.
+# shellcheck disable=SC2068,SC2145,SC2048,SC2044,SC2046
 set -e
 
 # Arquivos criados pelo entrypoint e pelos scripts chamados daqui com escrita do grupo 0 (g=u), para
